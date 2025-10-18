@@ -1,0 +1,9 @@
+server:
+  host: 127.0.0.1
+  workers: 1
+  debug: True
+
+
+security:
+  enable: False
+  enable_swagger: True
