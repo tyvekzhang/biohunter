@@ -17,7 +17,7 @@ maintainers = [
 authors = [
   { name = "tyvekzhang", email = "tyvekzhang@gmail.com" },
 ]
-requires-python = ">=3.9"
+requires-python = ">=3.10"
 classifiers = [
   "Development Status :: 4 - Beta",
   "Programming Language :: Python",
@@ -31,7 +31,10 @@ classifiers = [
   "Programming Language :: Python :: Implementation :: PyPy",
 ]
 dependencies = [
-  "fastlib-py>=0.3.4",
+    "autogen-agentchat[openai]>=0.7.5",
+    "autogen-core>=0.0.2",
+    "fastlib-py>=0.3.4",
+    "fastmcp>=2.12.5",
 ]
 
 [dependency-groups]

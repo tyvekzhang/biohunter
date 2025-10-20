@@ -3,7 +3,6 @@
 
 from fastapi import APIRouter
 from fastlib.response import HttpResponse
-from fastlib.stream.event import EventSourceResponse
 
 probe_router = APIRouter()
 
@@ -17,5 +16,4 @@ async def liveness() -> HttpResponse[str]:
         HttpResponse[str]: An HTTP response containing a success message
         with the string "Hi".
     """
-    EventSourceResponse
     return HttpResponse.success(message="Hi")

@@ -6,19 +6,13 @@ from fastapi import APIRouter
 from fastlib.stream.sse import EventSourceResponse
 from fastlib.stream.handler import AsyncStreamHandler
 from fastlib.cache import get_cache_client
-from src.main.app.schema.chat_schema import ConfirmMessageData, Message
+from src.main.app.schema.chat_schema import ConfirmMessage, ConfirmMessageData, Message
 
 chat_router = APIRouter()
 
 
 async def new_chat(message: Message = None, query: str= None):
-    yield ConfirmMessageData(message="123")
-    await asyncio.sleep(1)
-    
-    yield ConfirmMessageData()
-    await asyncio.sleep(1)
-    
-    yield ConfirmMessageData()
+    pass
 
 
 @chat_router.get("/chat")
@@ -44,4 +38,4 @@ async def chat():
     )
     await handler.start()
 
-    return EventSourceResponse(new_chat())    
+    return EventSourceResponse(handler.get_content_stream())    
