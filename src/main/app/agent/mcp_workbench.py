@@ -12,7 +12,7 @@ from autogen_core.tools import (
     ToolSchema,
     Workbench,
 )
-from src.main.app.agent.mcp_client import Client
+from src.main.app.agent.mcp_workbench import Client
 from mcp.types import CallToolResult, EmbeddedResource, ImageContent, TextContent
 
 

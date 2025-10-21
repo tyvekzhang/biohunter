@@ -9,6 +9,8 @@ import sys
 from fastlib import ConfigManager, LogConfig
 from fastlib.constants import CONFIG_FILE, ENV
 
+from src.main.app.agent.config import LLMConfig
+
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 
@@ -44,6 +46,7 @@ def setup_config(args: argparse.Namespace) -> None:
         os.environ[CONFIG_FILE] = args.config_file
 
     ConfigManager.register_custom_configs(LogConfig)
+    ConfigManager.register_custom_configs(LLMConfig)
     ConfigManager.initialize_global_config()
 
 

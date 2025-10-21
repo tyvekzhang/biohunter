@@ -1,13 +1,16 @@
 from autogen_ext.models.openai import OpenAIChatCompletionClient
 from autogen_core.models import ModelInfo
+from fastlib import ConfigManager
 
-from biodeepdiscovery.cohort.settings import settings
+from src.main.app.agent.config import LLMConfig
 
+llm_config: LLMConfig = ConfigManager.get_config_instance("llm")
+print(f"llm_config: {llm_config}")
 
 model_client = OpenAIChatCompletionClient(
-    model=settings.llm.model,
-    api_key=settings.llm.api_key,
-    base_url=settings.llm.base_url,
+    model=llm_config.model,
+    api_key=llm_config.api_key,
+    base_url=llm_config.base_url,
     model_info=ModelInfo(
         vision=False,
         function_calling=True,

@@ -28,7 +28,7 @@ from .schemas.chat.api import Conversation, ConversationResponse
 from .stream.storage import MemoryStorage
 from .tool_ctx.context import Context, get_ctx
 
-from .llm import model_client
+from .llm_client import model_client
 
 logger = logging.getLogger(__name__)
 

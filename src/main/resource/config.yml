@@ -1,6 +1,6 @@
 server:
   host: 0.0.0.0
-  port: 19000
+  port: 29000
   enable_api_prefix: False
   api_prefix: /api
   workers: 1
@@ -39,7 +39,6 @@ log:
   log_level: "INFO"
   log_rotation: "1 day"
   log_retention: "30 days"
-  log_format: "{time:YYYY-MM-DD HH:mm:ss.SSS} | {level: <8} | [{extra[correlation_id]}] | {name}:{function}:{line} | {message}"
   time_format: "YYYY-MM-DD"
   enable_console_log: true
   error_log_rotation: "1 day"
@@ -47,3 +46,8 @@ log:
   enable_json_logs: false
   enable_async: true
   max_file_size: "100 MB"
+
+llm:
+  model: ""
+  api_key: ""
+  base_url: ""
