@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: MIT
 from autogen_ext.models.openai import OpenAIChatCompletionClient
 from autogen_core.models import ModelInfo
 from fastlib import ConfigManager
@@ -5,7 +6,6 @@ from fastlib import ConfigManager
 from src.main.app.agent.config import LLMConfig
 
 llm_config: LLMConfig = ConfigManager.get_config_instance("llm")
-print(f"llm_config: {llm_config}")
 
 model_client = OpenAIChatCompletionClient(
     model=llm_config.model,

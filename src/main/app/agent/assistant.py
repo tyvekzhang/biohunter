@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: MIT
 import asyncio
 import logging
 from typing import AsyncGenerator, Literal, Sequence
@@ -14,19 +15,16 @@ from autogen_agentchat.messages import (
 from autogen_core import CancellationToken
 from fastmcp import Client
 from fastmcp.client.logging import LogMessage
-from ulid import ULID
+from fastlib.cache.manager import get_cache_client
 
-from .autogen.agents.team_agent import BaseTeamAgent
-from .autogen.teams import AssistantTeam
-from .autogen.teams.assistant_team import ConclusionEvent
-from .autogen.tools.fastmcp import FastMCPWorkbench
-from .cohort.agents.context import get_current_message
-from .cohort.settings import settings
-from .models.agent import Message
-from .models.mcp_log import BaseMCPLogEvent
-from .schemas.chat.api import Conversation, ConversationResponse
-from .stream.storage import MemoryStorage
-from .tool_ctx.context import Context, get_ctx
+from .team_agent import BaseTeamAgent
+from .assistant_team import AssistantTeam, ConclusionEvent
+from .mcp_workbench import FastMCPWorkbench
+from .context import get_current_message
+from .schema import Message
+
+Conversation = ""
+ConversationResponse = None
 
 from .llm_client import model_client
 
@@ -93,13 +91,13 @@ class AssistantTeamAgent(BaseTeamAgent[AssistantTeam]):
 
 
 class Assistant:
-    def __init__(self, task_id: ULID):
-        from .cohort.main import mcp
+    def __init__(self, task_id: str):
+        mcp = None
 
         self.task_id = task_id
 
         self.queue: asyncio.Queue[
-            BaseMCPLogEvent | BaseAgentEvent | BaseChatMessage | Response
+            BaseAgentEvent | BaseChatMessage | Response
         ] = asyncio.Queue()
 
         self.mcp_client = Client(mcp, log_handler=self._mcp_client_log_handler)
@@ -116,9 +114,6 @@ class Assistant:
 
         assistant_storages.store_sync(task_id, self)
 
-    async def _mcp_client_log_handler(self, message: LogMessage):
-        await self.queue.put(BaseMCPLogEvent.from_message(message))
-
     async def _run_stream(
         self, task: str | BaseChatMessage | Sequence[BaseChatMessage]
     ):
@@ -132,7 +127,7 @@ class Assistant:
             self.cancellation_token = None
 
     @classmethod
-    def cancel(cls, task_id: ULID):
+    def cancel(cls, task_id: str):
         assistant = assistant_storages.get_sync(task_id)
         if assistant is None:
             return
@@ -141,11 +136,11 @@ class Assistant:
 
     @classmethod
     async def run_stream(
-        cls, task_id: ULID, task: str | BaseChatMessage | Sequence[BaseChatMessage]
+        cls, task_id: str, task: str | BaseChatMessage | Sequence[BaseChatMessage]
     ) -> AsyncGenerator[
-        BaseMCPLogEvent | BaseAgentEvent | BaseChatMessage | Response, None
+        BaseAgentEvent | BaseChatMessage | Response, None
     ]:
-        ctx: Context = get_ctx()
+        ctx = None
         logger.debug(f"Handle task({task_id}): {task}")
 
         input_messages: list[BaseChatMessage] = []
@@ -201,12 +196,12 @@ class Assistant:
 
 
 async def get_conversation(message: Message) -> Conversation | None:
-    url = f"{settings.gateway_service_url}/api/chat/conversation/{message.conversation_id}"
+    url = f""
     async with httpx.AsyncClient(timeout=30) as client:
         response = await client.get(
             url,
             headers={
-                "Authorization": f"Bearer {settings.gateway_service_api_key}",
+                "Authorization": f"Bearer ",
                 "X-User-Id": message.user_id,
             },
         )
@@ -220,6 +215,5 @@ async def get_conversation(message: Message) -> Conversation | None:
             logger.error(f"Failed to get conversation history: {result.message}")
             return None
         return result.data
-
-
-assistant_storages = MemoryStorage[Assistant]()
+    
+assistant_storages = get_cache_client()

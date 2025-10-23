@@ -1,10 +1,11 @@
+# SPDX-License-Identifier: MIT
 from __future__ import annotations
 
 from contextlib import contextmanager
 from contextvars import ContextVar
 from typing import Generator
 
-from biodeepdiscovery.models.agent import Message
+from fastlib.stream.schema import Message
 
 _current_message: ContextVar[Message | None] = ContextVar(
     "current_message", default=None
