@@ -5,7 +5,7 @@ from contextlib import contextmanager
 from contextvars import ContextVar
 from typing import Generator
 
-from fastlib.stream.schema import Message
+from src.main.app.schema.chat_schema import Message
 
 _current_message: ContextVar[Message | None] = ContextVar(
     "current_message", default=None

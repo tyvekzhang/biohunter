@@ -19,10 +19,11 @@ from fastlib.middleware.db_session import (
 from fastlib.middleware.jwt import jwt_middleware
 from starlette.middleware.cors import CORSMiddleware
 
+from src.main.app.mcp.mcp_server import mcp
+
 # Load config
 server_config = ConfigManager.get_server_config()
 security_config = ConfigManager.get_security_config()
-
 
 # Setup fastapi instance
 app = FastAPI(
@@ -49,6 +50,12 @@ app.middleware("http")(jwt_middleware)
 exception.register_exception_handlers(app)
 
 # Setup router
+mcp_app = mcp.http_app()
+sse_app = mcp.http_app(path="/", transport="sse")
+
+app.mount("/mcp", mcp_app.router)
+app.mount("/sse", sse_app)
+
 current_dir = Path(__file__).parent.absolute()
 controller_path = os.path.join(current_dir, "controller")
 if server_config.enable_api_prefix:

@@ -1,9 +1,7 @@
 # SPDX-License-Identifier: MIT
 import asyncio
-import logging
 from typing import AsyncGenerator, Literal, Sequence
 
-import httpx
 from autogen_agentchat.base import Response, TaskResult
 from autogen_agentchat.messages import (
     BaseAgentEvent,
@@ -14,21 +12,14 @@ from autogen_agentchat.messages import (
 )
 from autogen_core import CancellationToken
 from fastmcp import Client
-from fastmcp.client.logging import LogMessage
 from fastlib.cache.manager import get_cache_client
 
 from .team_agent import BaseTeamAgent
 from .assistant_team import AssistantTeam, ConclusionEvent
 from .mcp_workbench import FastMCPWorkbench
 from .context import get_current_message
-from .schema import Message
-
-Conversation = ""
-ConversationResponse = None
-
+from loguru import logger
 from .llm_client import model_client
-
-logger = logging.getLogger(__name__)
 
 
 class ThoughtChunkEvent(ModelClientStreamingChunkEvent):
@@ -96,9 +87,9 @@ class Assistant:
 
         self.task_id = task_id
 
-        self.queue: asyncio.Queue[
-            BaseAgentEvent | BaseChatMessage | Response
-        ] = asyncio.Queue()
+        self.queue: asyncio.Queue[BaseAgentEvent | BaseChatMessage | Response] = (
+            asyncio.Queue()
+        )
 
         self.mcp_client = Client(mcp, log_handler=self._mcp_client_log_handler)
         self.workbench = FastMCPWorkbench(self.mcp_client)
@@ -137,9 +128,7 @@ class Assistant:
     @classmethod
     async def run_stream(
         cls, task_id: str, task: str | BaseChatMessage | Sequence[BaseChatMessage]
-    ) -> AsyncGenerator[
-        BaseAgentEvent | BaseChatMessage | Response, None
-    ]:
+    ) -> AsyncGenerator[BaseAgentEvent | BaseChatMessage | Response, None]:
         ctx = None
         logger.debug(f"Handle task({task_id}): {task}")
 
@@ -158,7 +147,7 @@ class Assistant:
 
             # get the conversation history and append to the input messages
             message = get_current_message()
-            conversation = await get_conversation(message)
+            conversation = None
             if conversation:
                 input_messages[:0] = [
                     TextMessage(source=message.role, content=message.content)
@@ -195,25 +184,4 @@ class Assistant:
                 logger.info(f"Assistant for {task_id} is deleted")
 
 
-async def get_conversation(message: Message) -> Conversation | None:
-    url = f""
-    async with httpx.AsyncClient(timeout=30) as client:
-        response = await client.get(
-            url,
-            headers={
-                "Authorization": f"Bearer ",
-                "X-User-Id": message.user_id,
-            },
-        )
-        if response.status_code != 200:
-            logger.error(
-                f"Failed to get conversation history: {response.status_code} {response.text}"
-            )
-            return None
-        result = ConversationResponse.model_validate_json(response.content)
-        if result.code != 0:
-            logger.error(f"Failed to get conversation history: {result.message}")
-            return None
-        return result.data
-    
 assistant_storages = get_cache_client()

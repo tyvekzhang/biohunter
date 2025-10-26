@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Annotated, Iterable, Literal
 
 from pydantic import BaseModel, Field
@@ -99,4 +99,4 @@ class Message(BaseMessage[StreamMessage]):
                 self.content += chunk.data.message
             elif isinstance(chunk, ErrorMessage):
                 self.content += chunk.data.message
-        self.updated_at = datetime.utcnow()
+        self.updated_at = datetime.now(timezone.utc)
