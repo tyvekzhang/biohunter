@@ -50,11 +50,11 @@ app.middleware("http")(jwt_middleware)
 exception.register_exception_handlers(app)
 
 # Setup router
-mcp_app = mcp.http_app()
-sse_app = mcp.http_app(path="/", transport="sse")
+# mcp_app = mcp.http_app()
+# sse_app = mcp.http_app(path="/", transport="sse")
 
-app.mount("/mcp", mcp_app.router)
-app.mount("/sse", sse_app)
+# app.mount("/mcp", mcp_app.router)
+# app.mount("/sse", sse_app)
 
 current_dir = Path(__file__).parent.absolute()
 controller_path = os.path.join(current_dir, "controller")

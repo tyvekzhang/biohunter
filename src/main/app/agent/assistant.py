@@ -16,7 +16,7 @@ from fastlib.cache.manager import get_cache_client
 
 from .team_agent import BaseTeamAgent
 from .assistant_team import AssistantTeam, ConclusionEvent
-from .mcp_workbench import FastMCPWorkbench
+from ..mcp.mcp_workbench import FastMCPWorkbench
 from .context import get_current_message
 from loguru import logger
 from .llm_client import model_client
