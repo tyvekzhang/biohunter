@@ -48,6 +48,6 @@ log:
   max_file_size: "100 MB"
 
 llm:
-  model: ""
-  api_key: ""
-  base_url: ""
+  model: "qwen-max"
+  api_key: "sk-ed9faaf7609f494b9a106a33c4eac418"
+  base_url: "https://dashscope.aliyuncs.com/compatible-mode/v1"

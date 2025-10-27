@@ -12,30 +12,38 @@ from autogen_agentchat.messages import (
 )
 from autogen_core import CancellationToken
 from fastmcp import Client
-from fastlib.cache.manager import get_cache_client
+
+from src.main.app.agent.storage import MemoryStorage
 
 from .team_agent import BaseTeamAgent
 from .assistant_team import AssistantTeam, ConclusionEvent
-from ..mcp.mcp_workbench import FastMCPWorkbench
+from ..mcps.mcp_workbench import FastMCPWorkbench
 from .context import get_current_message
 from loguru import logger
 from .llm_client import model_client
 
 
 class ThoughtChunkEvent(ModelClientStreamingChunkEvent):
+    """Event for streaming thought chunks from the task agent."""
+
     type: Literal["ThoughtChunkEvent"] = "ThoughtChunkEvent"
 
 
 class MessageChunkEvent(ModelClientStreamingChunkEvent):
+    """Event for streaming message chunks from the summary agent."""
+
     type: Literal["MessageChunkEvent"] = "MessageChunkEvent"
 
 
 class AssistantTeamAgent(BaseTeamAgent[AssistantTeam]):
+    """Agent that handles streaming messages and events from an AssistantTeam."""
+
     async def on_messages_stream(
         self,
         messages: Sequence[BaseChatMessage],
         cancellation_token: CancellationToken,
     ) -> AsyncGenerator[BaseAgentEvent | BaseChatMessage | Response, None]:
+        """Stream messages and events from the team, transforming them as needed."""
         last_message: BaseChatMessage | None = None
         async for message in self._team.run_stream(
             task=messages,
@@ -82,16 +90,18 @@ class AssistantTeamAgent(BaseTeamAgent[AssistantTeam]):
 
 
 class Assistant:
+    """Main assistant class that coordinates team agents and MCP tools."""
+
     def __init__(self, task_id: str):
-        mcp = None
+        """Initialize assistant with task ID and setup components."""
+        
+        from src.main.app.mcps.mcp_server import mcp
 
         self.task_id = task_id
-
         self.queue: asyncio.Queue[BaseAgentEvent | BaseChatMessage | Response] = (
             asyncio.Queue()
         )
-
-        self.mcp_client = Client(mcp, log_handler=self._mcp_client_log_handler)
+        self.mcp_client = Client(mcp)
         self.workbench = FastMCPWorkbench(self.mcp_client)
         self.agent = AssistantTeamAgent(
             name="assistant",
@@ -108,6 +118,7 @@ class Assistant:
     async def _run_stream(
         self, task: str | BaseChatMessage | Sequence[BaseChatMessage]
     ):
+        """Internal method to run the agent stream and populate the queue."""
         self.cancellation_token = CancellationToken()
         try:
             async for message in self.agent.run_stream(
@@ -119,6 +130,7 @@ class Assistant:
 
     @classmethod
     def cancel(cls, task_id: str):
+        """Cancel a running assistant task."""
         assistant = assistant_storages.get_sync(task_id)
         if assistant is None:
             return
@@ -129,6 +141,7 @@ class Assistant:
     async def run_stream(
         cls, task_id: str, task: str | BaseChatMessage | Sequence[BaseChatMessage]
     ) -> AsyncGenerator[BaseAgentEvent | BaseChatMessage | Response, None]:
+        """Run the assistant stream for a given task and yield events/messages."""
         ctx = None
         logger.debug(f"Handle task({task_id}): {task}")
 
@@ -158,14 +171,6 @@ class Assistant:
         logger.info(f"Assistant for {task_id} start to run")
 
         # get the file list and append to the input messages
-        files = await ctx.files
-        file_list_str = "\n".join([f"- {name}" for name in files])
-        input_messages.append(
-            TextMessage(
-                source="assistant",
-                content=f"I notice that there are some files in the workspace, here is the list:\n{file_list_str}",
-            )
-        )
 
         conclusion = None
         try:
@@ -184,4 +189,4 @@ class Assistant:
                 logger.info(f"Assistant for {task_id} is deleted")
 
 
-assistant_storages = get_cache_client()
+assistant_storages = MemoryStorage[Assistant]()

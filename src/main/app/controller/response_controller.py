@@ -7,7 +7,6 @@ from fastlib.stream.sse import EventSourceResponse
 from fastlib.stream.handler import AsyncStreamHandler
 from fastlib.cache import get_cache_client
 from loguru import logger
-from openai import OpenAI
 from src.main.app.agent.assistant import Assistant
 from src.main.app.agent.context import set_current_message
 from src.main.app.schema.chat_schema import Message
@@ -15,26 +14,25 @@ from autogen_agentchat.messages import (
     TextMessage,
 )
 
-chat_router = APIRouter()
+response_router = APIRouter()
 
 
 async def new_chat(message: Message = None, query: str = None):
-    # task = TextMessage(content=query, source="user")
+    task = TextMessage(content=query, source="user")
 
-    # with set_current_message(message):
-    #     async for event in Assistant.run_stream(message.task_id, task):
-    #         if hasattr(event, "content") and not event.content:
-    #             logger.warning(
-    #                 f"Skipping event with empty content: {type(event)}"
-    #             )
-    #             continue
-    #         logger.info(event)
+    with set_current_message(message):
+        async for event in Assistant.run_stream(message.task_id, task):
+            if hasattr(event, "content") and not event.content:
+                logger.warning(
+                    f"Skipping event with empty content: {type(event)}"
+                )
+                continue
+            logger.info(event)
     yield {"hello": "world"}
     await asyncio.sleep(1)
 
-
-@chat_router.get("/responses")
-async def responses():
+@response_router.post("/responses")
+async def create_response():
     message_id = "message_id"
     message = Message(
         id=message_id,
@@ -43,11 +41,7 @@ async def responses():
         conversation_id="conversation_id",
     )
     source = new_chat(message, "")
-    client = OpenAI()
-    response = client.responses.create(
-    model="gpt-4o",
-    input="你好，请介绍下你自己！"  # 输入：字符串
-)
+
 
     handler_storage = await get_cache_client()
 

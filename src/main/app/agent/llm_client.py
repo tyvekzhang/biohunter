@@ -18,6 +18,6 @@ model_client = OpenAIChatCompletionClient(
         family="unknown",
         structured_output=False,
     ),
-    stream_options={"include_usage": True},
+    stream_options={"stream": True, "include_usage": True},
     parallel_tool_calls=False,
 )
