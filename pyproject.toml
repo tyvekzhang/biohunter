@@ -34,6 +34,7 @@ dependencies = [
     "autogen-agentchat[openai]>=0.7.5",
     "autogen-core>=0.0.2",
     "autogen-ext[openai]>=0.7.5",
+    "fakeredis>=2.32.0",
     "fastlib-py>=0.3.4",
     "fastmcp>=2.12.5",
 ]

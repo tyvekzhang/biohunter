@@ -19,15 +19,18 @@ response_router = APIRouter()
 
 async def new_chat(message: Message = None, query: str = None):
     task = TextMessage(content=query, source="user")
-
+    full_context = ""
+    
     with set_current_message(message):
         async for event in Assistant.run_stream(message.task_id, task):
+            full_context = full_context + event.content
             if hasattr(event, "content") and not event.content:
                 logger.warning(
                     f"Skipping event with empty content: {type(event)}"
                 )
                 continue
             logger.info(event)
+    print(full_context)
     yield {"hello": "world"}
     await asyncio.sleep(1)
 
@@ -45,7 +48,7 @@ async def create_response():
 
     handler_storage = await get_cache_client()
 
-    await handler_storage.set(message_id, message)
+    await handler_storage.set(message_id, message.model_dump_json())
 
     handler = AsyncStreamHandler[Message](
         message,
