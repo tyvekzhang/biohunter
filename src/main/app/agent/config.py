@@ -5,8 +5,7 @@ LLM configuration settings for the application.
 
 from dataclasses import dataclass
 import os
-from fastlib.config.base import BaseConfig
-from fastlib.config.manager import config_class
+from fastlib.config import config_class, BaseConfig
 
 
 @config_class("llm")

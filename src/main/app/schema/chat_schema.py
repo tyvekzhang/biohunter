@@ -67,7 +67,7 @@ class ErrorMessage(StreamMessage):
     data: Annotated[ErrorMessageData, Field(default_factory=ErrorMessageData)]
 
 
-class Message(BaseMessage[StreamMessage]):
+class TestMessage(BaseMessage[StreamMessage]):
     user_id: Annotated[str, Field(description="消息所属的用户ID")]
     task_id: Annotated[str, Field(description="消息所属的任务ID")]
     conversation_id: Annotated[

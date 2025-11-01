@@ -17,7 +17,7 @@ maintainers = [
 authors = [
   { name = "tyvekzhang", email = "tyvekzhang@gmail.com" },
 ]
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 classifiers = [
   "Development Status :: 4 - Beta",
   "Programming Language :: Python",
@@ -31,12 +31,11 @@ classifiers = [
   "Programming Language :: Python :: Implementation :: PyPy",
 ]
 dependencies = [
-    "autogen-agentchat[openai]>=0.7.5",
-    "autogen-core>=0.0.2",
-    "autogen-ext[openai]>=0.7.5",
-    "fakeredis>=2.32.0",
-    "fastlib-py>=0.3.4",
-    "fastmcp>=2.12.5",
+    "autogen-agentchat==0.5.7",
+    "autogen-ext[openai]==0.5.7",
+    "fastlib-py>=0.3.8",
+    "fastmcp==2.13.0.2",
+    "loguru>=0.7.3",
 ]
 
 [dependency-groups]
@@ -114,6 +113,6 @@ show_contexts = true
 strict = true
 
 [[tool.uv.index]]
-name = "tsinghua"
-url = "https://pypi.tuna.tsinghua.edu.cn/simple/"
+name = "huaweicloud"
+url = "https://repo.huaweicloud.com/repository/pypi/simple/"
 default = true

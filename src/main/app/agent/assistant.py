@@ -19,7 +19,7 @@ from .team_agent import BaseTeamAgent
 from .assistant_team import AssistantTeam, ConclusionEvent
 from ..mcps.mcp_workbench import FastMCPWorkbench
 from .context import get_current_message
-from loguru import logger
+from fastlib.logging.handlers import logger
 from .llm_client import model_client
 
 
