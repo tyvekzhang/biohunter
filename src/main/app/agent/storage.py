@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import Dict, Generic, Optional, TypeVar
+from typing import Generic, TypeVar
 
 T = TypeVar("T")
 
@@ -15,12 +15,12 @@ class BaseStorage(ABC, Generic[T]):
         pass
 
     @abstractmethod
-    async def get(self, entity_id: str) -> Optional[T]:
+    async def get(self, entity_id: str) -> T | None:
         """Get entity by ID"""
         pass
 
     @abstractmethod
-    async def update(self, entity_id: str, **updated) -> Optional[T]:
+    async def update(self, entity_id: str, **updated) -> T | None:
         """Update entity"""
         pass
 
@@ -39,7 +39,7 @@ class MemoryStorage(BaseStorage[T]):
     """In-memory storage implementation"""
 
     def __init__(self):
-        self._data: Dict[str, T] = {}
+        self._data: dict[str, T] = {}
 
     async def store(self, entity_id: str, entity: T) -> str:
         self.store_sync(entity_id, entity)
@@ -49,13 +49,13 @@ class MemoryStorage(BaseStorage[T]):
         self._data[entity_id] = entity
         return entity_id
 
-    async def get(self, entity_id: str) -> Optional[T]:
+    async def get(self, entity_id: str) -> T | None:
         return self._data.get(entity_id)
 
-    def get_sync(self, entity_id: str) -> Optional[T]:
+    def get_sync(self, entity_id: str) -> T | None:
         return self._data.get(entity_id)
 
-    async def update(self, entity_id: str, **updated) -> Optional[T]:
+    async def update(self, entity_id: str, **updated) -> T | None:
         if entity_id not in self._data:
             return None
 

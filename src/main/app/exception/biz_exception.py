@@ -2,7 +2,7 @@
 """Business exception for the application."""
 
 from http import HTTPStatus
-from typing import Any, Optional
+from typing import Any
 
 from fastlib.exception import ErrorDetail
 from fastlib.exception.base import BaseException
@@ -31,7 +31,7 @@ class BusinessException(BaseException):
     def __init__(
         self,
         code: BusinessErrorCode,
-        message: Optional[str] = None,
-        details: Optional[Any] = None,
+        message: str | None = None,
+        details: Any | None = None,
     ):
         super().__init__(code=code, message=message, details=details)

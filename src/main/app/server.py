@@ -19,8 +19,6 @@ from fastlib.middleware.db_session import (
 from fastlib.middleware.jwt import jwt_middleware
 from starlette.middleware.cors import CORSMiddleware
 
-from src.main.app.mcps.mcp_server import mcp
-
 # Load config
 server_config = ConfigManager.get_server_config()
 security_config = ConfigManager.get_security_config()

@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: MIT
 import asyncio
-from typing import AsyncGenerator, Literal, Sequence
+from collections.abc import AsyncGenerator, Sequence
+from typing import Literal
 
 from autogen_agentchat.base import Response, TaskResult
 from autogen_agentchat.messages import (
@@ -11,16 +12,16 @@ from autogen_agentchat.messages import (
     ThoughtEvent,
 )
 from autogen_core import CancellationToken
+from fastlib.logging.handlers import logger
 from fastmcp import Client
 
 from src.main.app.agent.storage import MemoryStorage
 
-from .team_agent import BaseTeamAgent
-from .assistant_team import AssistantTeam, ConclusionEvent
 from ..mcps.mcp_workbench import FastMCPWorkbench
+from .assistant_team import AssistantTeam, ConclusionEvent
 from .context import get_current_message
-from fastlib.logging.handlers import logger
 from .llm_client import model_client
+from .team_agent import BaseTeamAgent
 
 
 class ThoughtChunkEvent(ModelClientStreamingChunkEvent):
@@ -94,7 +95,7 @@ class Assistant:
 
     def __init__(self, task_id: str):
         """Initialize assistant with task ID and setup components."""
-        
+
         from src.main.app.mcps.mcp_server import mcp
 
         self.task_id = task_id

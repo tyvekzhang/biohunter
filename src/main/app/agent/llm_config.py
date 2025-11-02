@@ -21,5 +21,5 @@ class LLMConfig(BaseConfig):
     """
     
     model: str = "qwen-max"
-    api_key: str = os.getenv("API_KEY", "sk-ed9faaf7609f494b9a106a33c4eac418")
+    api_key: str = os.getenv("API_KEY", "")
     base_url: str = "https://dashscope.aliyuncs.com/compatible-mode/v1"

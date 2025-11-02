@@ -7,7 +7,8 @@ into a single agent interface. The BaseTeamAgent class allows complex multi-agen
 teams to be used as unified, composable components within larger agent systems.
 """
 
-from typing import Any, AsyncGenerator, Generic, Mapping, Sequence, TypeVar
+from collections.abc import AsyncGenerator, Mapping, Sequence
+from typing import Any, Generic, Self, TypeVar
 
 from autogen_agentchat.agents import BaseChatAgent
 from autogen_agentchat.base import Response, TaskResult
@@ -22,25 +23,26 @@ from autogen_agentchat.state import BaseState
 from autogen_agentchat.teams import BaseGroupChat
 from autogen_core import CancellationToken, ComponentModel
 from pydantic.main import BaseModel
-from typing_extensions import Self
 
 
 class TeamAgentState(BaseState):
     """State container for team agent.
-    
+
     Stores the internal state of the wrapped team for persistence and restoration.
     """
+
     team_state: Any
 
 
 class TeamAgentConfig(BaseModel):
     """Configuration for team agent serialization.
-    
+
     Attributes:
         name: Identifier for the team agent
-        description: Purpose and capabilities description  
+        description: Purpose and capabilities description
         team: Serialized team configuration
     """
+
     name: str
     description: str
     team: ComponentModel
@@ -52,11 +54,11 @@ T = TypeVar("T", bound=BaseGroupChat)
 class BaseTeamAgent(BaseChatAgent, Generic[T]):
     """
     A wrapper that encapsulates a group chat team as a single agent.
-    
+
     This class allows a multi-agent team to be used as a single agent entity,
     providing unified interface for message handling, state management, and
     team coordination while maintaining the internal team structure.
-    
+
     Example:
         ```python
         # Create a group chat team with multiple agents
@@ -64,17 +66,17 @@ class BaseTeamAgent(BaseChatAgent, Generic[T]):
             participants=[agent1, agent2, agent3],
             max_rounds=10
         )
-        
+
         # Wrap the team as a single agent
         team_agent = BaseTeamAgent(
             name="research_team",
             description="A team for research tasks",
             team=team
         )
-        
+
         # Use the team agent like a regular agent
         result = await team_agent.run(task="Research AI trends")
-        
+
         # Or use streaming for real-time updates
         async for message in team_agent.run_stream(task="Analyze market data"):
             if isinstance(message, ThoughtEvent):
@@ -92,7 +94,7 @@ class BaseTeamAgent(BaseChatAgent, Generic[T]):
     ):
         """
         Initialize the team agent.
-        
+
         Args:
             name: Name of the team agent
             description: Description of the team's purpose
@@ -129,7 +131,7 @@ class BaseTeamAgent(BaseChatAgent, Generic[T]):
     ) -> AsyncGenerator[BaseAgentEvent | BaseChatMessage | Response, None]:
         """
         Process messages and stream events in real-time.
-        
+
         Yields:
             Various agent events including ThoughtEvent for agent reasoning,
             BaseChatMessage for responses, and Response for final output.
@@ -199,7 +201,7 @@ class BaseTeamAgent(BaseChatAgent, Generic[T]):
     ) -> AsyncGenerator[BaseAgentEvent | BaseChatMessage | TaskResult, None]:
         """
         Run the agent with the given task and return a stream of messages.
-        
+
         Example:
             ```python
             async for event in team_agent.run_stream(task="Solve this problem"):

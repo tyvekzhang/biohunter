@@ -6,7 +6,6 @@ This module contains the system prompts used by the Task Agent and Summary Agent
 in the coordinated assistant team architecture.
 """
 
-
 DEFAULT_TASK_PROMPT = """You are a powerful assistant that can use tools to execute tasks. Your role is to:
 
 1. Understand the user's request and break it down into actionable steps

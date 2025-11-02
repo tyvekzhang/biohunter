@@ -1,7 +1,9 @@
 # SPDX-License-Identifier: MIT
 """FastMCP client"""
+
 import asyncio
-from typing import Any, Mapping
+from collections.abc import Mapping
+from typing import Any
 
 from autogen_core import CancellationToken, Image
 from autogen_core.tools import (

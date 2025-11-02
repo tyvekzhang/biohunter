@@ -1,8 +1,9 @@
-from datetime import datetime, timezone
-from typing import Annotated, Iterable, Literal
+from collections.abc import Iterable
+from datetime import UTC, datetime
+from typing import Annotated, Literal
 
+from fastlib.stream.schema import BaseMessage, BaseStreamMessage
 from pydantic import BaseModel, Field
-from fastlib.stream.schema import BaseStreamMessage, BaseMessage
 
 
 class StreamMessage(BaseStreamMessage):
@@ -40,9 +41,7 @@ class ConfirmMessageData(StreamMessageData):
 
 class ConfirmMessage(StreamMessage):
     event: Literal["confirm"] = "confirm"
-    data: Annotated[
-        ConfirmMessageData, Field(default_factory=ConfirmMessageData)
-    ]
+    data: Annotated[ConfirmMessageData, Field(default_factory=ConfirmMessageData)]
 
 
 class DoneMessageData(StreamMessageData):
@@ -70,9 +69,7 @@ class ErrorMessage(StreamMessage):
 class TestMessage(BaseMessage[StreamMessage]):
     user_id: Annotated[str, Field(description="消息所属的用户ID")]
     task_id: Annotated[str, Field(description="消息所属的任务ID")]
-    conversation_id: Annotated[
-        str, Field(description="消息所属的对话ID")
-    ]
+    conversation_id: Annotated[str, Field(description="消息所属的对话ID")]
     content: Annotated[
         str,
         Field(
@@ -99,4 +96,4 @@ class TestMessage(BaseMessage[StreamMessage]):
                 self.content += chunk.data.message
             elif isinstance(chunk, ErrorMessage):
                 self.content += chunk.data.message
-        self.updated_at = datetime.now(timezone.utc)
+        self.updated_at = datetime.now(UTC)

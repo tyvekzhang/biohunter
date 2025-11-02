@@ -1,6 +1,5 @@
 from fastmcp import FastMCP
 
-
 mcp = FastMCP("Biohunter")
 
 
@@ -9,7 +8,4 @@ def get_weather(name: str) -> dict:
     """
     通过名字获取天气
     """
-    return {
-        "result": f"{name} 的天气是晴天!"
-    }
-
+    return {"result": f"{name} 的天气是晴天!"}
