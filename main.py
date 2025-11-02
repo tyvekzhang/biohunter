@@ -9,7 +9,7 @@ import sys
 from fastlib.config import ConfigManager
 from fastlib.constants import CONFIG_FILE, ENV
 
-from src.main.app.agent.config import LLMConfig
+from src.main.app.agent.llm_config import LLMConfig
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
