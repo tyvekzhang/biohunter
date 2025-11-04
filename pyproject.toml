@@ -29,6 +29,7 @@ classifiers = [
   "Programming Language :: Python :: Implementation :: PyPy",
 ]
 dependencies = [
+  "aiomysql>=0.3.2",
   "autogen-agentchat==0.5.7",
   "autogen-ext[openai]==0.5.7",
   "fastlib-py>=0.4",
