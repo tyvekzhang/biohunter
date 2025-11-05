@@ -34,8 +34,6 @@ class ConversationDetail(BaseModel):
 
 class CreateConversation(BaseModel):
     title: str
-    created_at: str
-    update_at: str
 
 
 class CreateConversationRequest(BaseModel):
