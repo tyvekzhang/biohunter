@@ -35,9 +35,11 @@ async def generate_tokens(user_id: int) -> UserCredential:
     Both tokens are generated using the same user ID and expiration configuration.
     
     Args:
+    
         user_id: User ID to generate tokens for
         
     Returns:
+    
         UserCredential object containing access_token and refresh_token
     """
     token_expires = timedelta(days=3650)
@@ -58,6 +60,18 @@ async def generate_tokens(user_id: int) -> UserCredential:
 
 @auth_router.post("/tokens")
 async def create_token(fingerprint: str) -> UserCredential:
+    """Create or retrieve authentication tokens for a user.
+    
+    If the user doesn't exist, creates a new user with the provided fingerprint.
+    
+    Args:
+    
+        fingerprint: Unique identifier used to lookup or create user
+        
+    Returns:
+    
+        UserCredential: Authentication tokens for the user
+    """
     user = await userMapper.select_by_username(username=fingerprint)
     if user is None:
         user = UserModel(username=fingerprint)
