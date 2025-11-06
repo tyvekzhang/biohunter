@@ -30,7 +30,7 @@ security:
   secret_key: 43365f0e3e88863ff5080ac382d7717634a8ef72d8f2b52d436fc9847dbecc64
   access_token_expire_minutes: 30
   refresh_token_expire_minutes: 43200
-  white_list_routes: /api/v1/probe/liveness, /api/v1/probe/readiness, /api/v1/user/register, /api/v1/auth:signInWithEmailAndPassword,
+  white_list_routes: /v1/probe/liveness, /v1/probe/readiness, /v1/user/register, /v1/auth:signInWithEmailAndPassword,
   backend_cors_origins: http://127.0.0.1:8000, http://localhost:8000, http://localhost
   black_ip_list: ""
 
