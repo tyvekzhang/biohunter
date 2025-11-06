@@ -24,9 +24,9 @@ def upgrade():
     sa.Column('id', sa.BigInteger(), nullable=False, comment='主键'),
     sa.Column('user_id', sa.Integer(), nullable=True, comment='用户id'),
     sa.Column('title', sa.String(length=255), nullable=True, comment='标题'),
+    sa.Column('is_default', sa.Integer(), nullable=True, comment='是否默认'),
     sa.Column('create_at', sa.DateTime(), nullable=True, comment='创建时间'),
     sa.Column('update_at', sa.DateTime(), nullable=True, comment='更新时间'),
-    sa.Column('is_default', sa.Integer(), nullable=True, comment='是否默认'),
     sa.PrimaryKeyConstraint('id')
     )
     op.create_table('users',

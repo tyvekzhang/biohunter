@@ -4,13 +4,16 @@
 from enum import Enum
 
 
-class UserStatusEnum(Enum):
+class StatusEnum(Enum):
     """User Status Enum"""
 
     DISABLED = (0, "停用")
     PENDING = (1, "待审核")
     ACTIVE = (2, "正常")
     DELETED = (3, "已注销")
+
+    YES = (1, "是")
+    NO = (0, "否")
 
     def __init__(self, code, status):
         self.code = code

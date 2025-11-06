@@ -32,7 +32,7 @@ dependencies = [
   "aiomysql>=0.3.2",
   "autogen-agentchat==0.5.7",
   "autogen-ext[openai]==0.5.7",
-  "fastlib-py>=0.4",
+  "fastlib-py>=0.4.1",
   "fastmcp==2.13.0.2",
   "loguru>=0.7.3",
 ]

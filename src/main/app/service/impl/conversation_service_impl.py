@@ -13,9 +13,11 @@ from pydantic import ValidationError
 from starlette.responses import StreamingResponse
 
 from fastlib.constants import FilterOperators
+from fastlib.contextvars import get_current_user
 from fastlib.service.impl.base_service_impl import BaseServiceImpl
 from fastlib.utils import excel_util
 from fastlib.utils.validate_util import ValidateService
+from src.main.app.enums.enum import StatusEnum
 from src.main.app.exception.biz_exception import BusinessErrorCode
 from src.main.app.exception.biz_exception import BusinessException
 from src.main.app.mapper.conversation_mapper import ConversationMapper
@@ -81,8 +83,8 @@ class ConversationServiceImpl(BaseServiceImpl[ConversationMapper, ConversationMo
             filters[FilterOperators.EQ]["id"] = req.id
         if req.title is not None and req.title != "":
             filters[FilterOperators.EQ]["title"] = req.title
-        if req.created_at is not None and req.created_at != "":
-            filters[FilterOperators.EQ]["created_at"] = req.created_at
+        if req.create_at is not None and req.create_at != "":
+            filters[FilterOperators.EQ]["create_at"] = req.create_at
         if req.update_at is not None and req.update_at != "":
             filters[FilterOperators.EQ]["update_at"] = req.update_at
         sort_list = None
@@ -101,6 +103,8 @@ class ConversationServiceImpl(BaseServiceImpl[ConversationMapper, ConversationMo
 
     async def create_conversation(self, req: CreateConversationRequest) -> ConversationModel:
         conversation: ConversationModel = ConversationModel(**req.conversation.model_dump())
+        conversation.is_default = StatusEnum.YES.code
+        conversation.user_id = get_current_user()
         return await self.save(data=conversation)
 
     async def update_conversation(self, req: UpdateConversationRequest) -> ConversationModel:

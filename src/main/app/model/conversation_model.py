@@ -42,13 +42,13 @@ class ConversationBase(SQLModel):
     )
     create_at: Optional[datetime] = Field(
         sa_type=DateTime,
-        default_factory=datetime.now(timezone.utc),sa_column_kwargs={"comment": "创建时间"}
+        default_factory=lambda: datetime.now(timezone.utc),sa_column_kwargs={"comment": "创建时间"}
     )
     update_at: Optional[datetime] = Field(
         sa_type=DateTime,
-        default_factory=datetime.now(timezone.utc),
+        default_factory=lambda: datetime.now(timezone.utc),
         sa_column_kwargs={
-            "onupdate": datetime.now(timezone.utc),"comment": "更新时间",
+            "onupdate": lambda: datetime.now(timezone.utc), "comment": "更新时间",
         },
     )
     is_default: Optional[int] = Field(

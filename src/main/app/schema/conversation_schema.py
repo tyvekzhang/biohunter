@@ -14,22 +14,22 @@ from fastlib.request import ListRequest
 class ListConversationsRequest(ListRequest):
     id: Optional[int] = None
     title: Optional[str] = None
-    created_at: Optional[str] = None
+    create_at: Optional[str] = None
     update_at: Optional[str] = None
 
 
 class Conversation(BaseModel):
     id: int
     title: str
-    created_at: str
-    update_at: str
+    create_at: datetime
+    update_at: datetime
 
 
 class ConversationDetail(BaseModel):
     id: int
     title: str
-    created_at: str
-    update_at: str
+    create_at: datetime
+    update_at: datetime
 
 
 class CreateConversation(BaseModel):
@@ -43,8 +43,8 @@ class CreateConversationRequest(BaseModel):
 class UpdateConversation(BaseModel):
     id: int
     title: str
-    created_at: str
-    update_at: str
+    create_at: datetime
+    update_at: datetime
 
 
 class UpdateConversationRequest(BaseModel):
@@ -65,8 +65,8 @@ class BatchCreateConversationsResponse(BaseModel):
 
 class BatchUpdateConversation(BaseModel):
     title: str
-    created_at: str
-    update_at: str
+    create_at: datetime
+    update_at: datetime
 
 
 class BatchUpdateConversationsRequest(BaseModel):
