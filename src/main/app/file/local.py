@@ -1,353 +1,385 @@
-import math
+# app.py
+from fastapi import FastAPI, UploadFile, File, HTTPException, Form
+from fastapi.responses import JSONResponse
+from pydantic import BaseModel
+from typing import Optional, List
 import os
+import hashlib
+import json
 import shutil
 import uuid
-from datetime import datetime, timezone
-from pathlib import Path
-from typing import List
+from datetime import datetime
+import aiofiles
 
-from fastapi import APIRouter, Body, Depends, Form, Query, UploadFile
-from fastapi import File as FastApiFile
-from loguru import logger
-from sqlalchemy import delete, insert, select, update
-from sqlalchemy.exc import IntegrityError
+app = FastAPI()
 
-from app.common.context import Context
-from app.common.exception import ServiceError
-from app.db import crud
-from app.db.orm import File, MultipartUpload, MultipartUploadPart
-from app.schema.api import ApiResponse, ApiResponseCode
-from app.schema.enum import FileStatus
-from app.schema.file import FileId, InitMultipartUploadFileRequest, MultipartUploadFileStatus, UploadPartRequest
-from app.service.directory import add_file_in_directory, create_or_get_directory, determine_directory_name_by_biz
+# 配置
+UPLOAD_DIR = "uploads"
+TEMP_DIR = "temp_uploads"
+METADATA_DIR = "metadata"
 
-router = APIRouter(tags=["multipart_upload"])
+# 创建必要的目录
+for dir_path in [UPLOAD_DIR, TEMP_DIR, METADATA_DIR]:
+    os.makedirs(dir_path, exist_ok=True)
 
+# 数据模型
+class InitUploadRequest(BaseModel):
+    filename: str
+    total_chunks: int
+    file_size: int
+    file_md5: str  # 整个文件的MD5，用于秒传
 
-def get_upload_base_dir(ctx: Context) -> Path:
-    """获取文件上传基础目录"""
-    base_dir = Path(ctx.config.upload_dir) / "uploads"
-    base_dir.mkdir(parents=True, exist_ok=True)
-    return base_dir
+class ChunkUploadResponse(BaseModel):
+    chunk_number: int
+    status: str
+    message: str
 
+class UploadStatus(BaseModel):
+    upload_id: str
+    filename: str
+    total_chunks: int
+    uploaded_chunks: List[int]
+    file_size: int
+    file_md5: str
+    status: str  # 'uploading', 'completed', 'paused', 'cancelled'
+    created_at: str
+    updated_at: str
 
-def get_temp_upload_dir(ctx: Context, upload_id: str) -> Path:
-    """获取临时分片目录"""
-    temp_dir = Path(ctx.config.upload_dir) / "temp" / upload_id
-    temp_dir.mkdir(parents=True, exist_ok=True)
-    return temp_dir
+# 工具函数
+def calculate_file_md5(file_path: str) -> str:
+    """计算文件的MD5值"""
+    hash_md5 = hashlib.md5()
+    with open(file_path, "rb") as f:
+        for chunk in iter(lambda: f.read(4096), b""):
+            hash_md5.update(chunk)
+    return hash_md5.hexdigest()
 
+def calculate_chunk_md5(content: bytes) -> str:
+    """计算分片的MD5值"""
+    return hashlib.md5(content).hexdigest()
 
-def get_file_path(ctx: Context, user_id: str, file_id: int, filename: str) -> Path:
-    """获取文件最终存储路径"""
-    user_dir = get_upload_base_dir(ctx) / user_id
-    user_dir.mkdir(parents=True, exist_ok=True)
-    return user_dir / f"{file_id}-{filename}"
+def get_metadata_path(upload_id: str) -> str:
+    """获取元数据文件路径"""
+    return os.path.join(METADATA_DIR, f"{upload_id}.json")
 
+def load_upload_metadata(upload_id: str) -> dict:
+    """加载上传元数据"""
+    metadata_path = get_metadata_path(upload_id)
+    if not os.path.exists(metadata_path):
+        raise HTTPException(status_code=404, detail="Upload ID not found")
+    
+    with open(metadata_path, 'r') as f:
+        return json.load(f)
 
-@router.post("/initMultipartUploadFile", description="初始化分片上传任务")
-def init_multipart_upload_file(
-    request: InitMultipartUploadFileRequest = Body(), ctx: Context = Depends()
-) -> ApiResponse[int]:
-    with ctx.db.begin():
-        # 插入File，获得file_id
-        file_id = crud.insert_row(
-            ctx.db,
-            File,
-            {
-                "upload_at": datetime.now(timezone.utc).isoformat(),
-                "biz": request.biz,
-                "user_id": ctx.user_id,
-                "filename": request.filename,
-                "size": request.size,
-                "hashcode": request.hashcode if request.hashcode is not None else "",
-                "biz_params": request.biz_params,
-                "status": FileStatus.uploading,
-            },
-            commit=False,
+def save_upload_metadata(upload_id: str, metadata: dict):
+    """保存上传元数据"""
+    metadata_path = get_metadata_path(upload_id)
+    metadata['updated_at'] = datetime.now().isoformat()
+    with open(metadata_path, 'w') as f:
+        json.dump(metadata, f, indent=2)
+
+def check_file_exists_by_md5(file_md5: str) -> Optional[str]:
+    """通过MD5检查文件是否已存在（用于秒传）"""
+    # 检查已完成的文件
+    for filename in os.listdir(UPLOAD_DIR):
+        file_path = os.path.join(UPLOAD_DIR, filename)
+        if os.path.isfile(file_path):
+            if calculate_file_md5(file_path) == file_md5:
+                return file_path
+    return None
+
+# API端点
+
+@app.post("/api/upload/init")
+async def init_upload(request: InitUploadRequest):
+    """
+    初始化分片上传，获取上传ID
+    如果文件已存在（MD5相同），直接返回秒传成功
+    """
+    # 检查是否可以秒传
+    existing_file = check_file_exists_by_md5(request.file_md5)
+    if existing_file:
+        return JSONResponse({
+            "status": "instant",
+            "message": "文件已存在，秒传成功",
+            "file_path": existing_file,
+            "upload_id": None
+        })
+    
+    # 生成唯一的上传ID
+    upload_id = str(uuid.uuid4())
+    
+    # 创建临时上传目录
+    temp_upload_dir = os.path.join(TEMP_DIR, upload_id)
+    os.makedirs(temp_upload_dir, exist_ok=True)
+    
+    # 保存上传元数据
+    metadata = {
+        "upload_id": upload_id,
+        "filename": request.filename,
+        "total_chunks": request.total_chunks,
+        "uploaded_chunks": [],
+        "file_size": request.file_size,
+        "file_md5": request.file_md5,
+        "status": "uploading",
+        "created_at": datetime.now().isoformat(),
+        "updated_at": datetime.now().isoformat()
+    }
+    save_upload_metadata(upload_id, metadata)
+    
+    return JSONResponse({
+        "status": "success",
+        "upload_id": upload_id,
+        "message": "上传初始化成功"
+    })
+
+@app.get("/api/upload/status/{upload_id}")
+async def get_upload_status(upload_id: str):
+    """获取上传状态，用于断点续传"""
+    try:
+        metadata = load_upload_metadata(upload_id)
+        return UploadStatus(**metadata)
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/upload/chunk")
+async def upload_chunk(
+    upload_id: str = Form(...),
+    chunk_number: int = Form(...),
+    chunk_md5: str = Form(...),
+    file: UploadFile = File(...)
+):
+    """上传单个分片"""
+    try:
+        # 加载元数据
+        metadata = load_upload_metadata(upload_id)
+        
+        # 检查上传状态
+        if metadata['status'] not in ['uploading', 'paused']:
+            raise HTTPException(
+                status_code=400, 
+                detail=f"Upload is {metadata['status']}, cannot upload chunks"
+            )
+        
+        # 检查分片号是否有效
+        if chunk_number < 0 or chunk_number >= metadata['total_chunks']:
+            raise HTTPException(status_code=400, detail="Invalid chunk number")
+        
+        # 检查分片是否已上传（用于断点续传）
+        if chunk_number in metadata['uploaded_chunks']:
+            return ChunkUploadResponse(
+                chunk_number=chunk_number,
+                status="exists",
+                message="Chunk already uploaded"
+            )
+        
+        # 读取分片内容
+        content = await file.read()
+        
+        # 验证分片MD5
+        actual_md5 = calculate_chunk_md5(content)
+        if actual_md5 != chunk_md5:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Chunk MD5 mismatch. Expected: {chunk_md5}, Got: {actual_md5}"
+            )
+        
+        # 保存分片
+        temp_upload_dir = os.path.join(TEMP_DIR, upload_id)
+        chunk_path = os.path.join(temp_upload_dir, f"chunk_{chunk_number:06d}")
+        
+        async with aiofiles.open(chunk_path, 'wb') as f:
+            await f.write(content)
+        
+        # 更新元数据
+        metadata['uploaded_chunks'].append(chunk_number)
+        metadata['uploaded_chunks'].sort()
+        save_upload_metadata(upload_id, metadata)
+        
+        return ChunkUploadResponse(
+            chunk_number=chunk_number,
+            status="success",
+            message="Chunk uploaded successfully"
         )
-
-        # 生成upload_id（本地使用UUID模拟）
-        upload_id = str(uuid.uuid4())
         
-        # 创建临时分片目录
-        temp_dir = get_temp_upload_dir(ctx, upload_id)
-        logger.info(f"created temp upload dir, {file_id=}, {upload_id=}, {temp_dir=}")
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
-        # 确定文件最终存储路径
-        file_path = get_file_path(ctx, ctx.user_id, file_id, request.filename)
+@app.post("/api/upload/merge/{upload_id}")
+async def merge_chunks(upload_id: str):
+    """合并所有分片"""
+    try:
+        # 加载元数据
+        metadata = load_upload_metadata(upload_id)
         
-        # 更新File的path
-        local_path = f"file://{file_path.absolute()}"
-        update_file_stmt = update(File).where(File.id == file_id).values(path=local_path)
-        if ctx.db.execute(update_file_stmt).rowcount != 1:
-            logger.error(f"update file path error, {file_id=}, {update_file_stmt=}")
-            raise ServiceError.server_error("update file path error")
-
-        # 处理目录
-        dir_id = request.directory_id
-        if dir_id is None:
-            dir_name = determine_directory_name_by_biz(request.biz, request.biz_params)
-            dir_id = create_or_get_directory(ctx.db, dir_name, ctx.user_id, commit=False)
-        add_file_in_directory(ctx.db, file_id, dir_id, check_directory=True)
-
-        # 插入MultipartUpload
-        part_count = math.ceil(request.size / request.part_size)
-        crud.insert_row(
-            ctx.db,
-            MultipartUpload,
-            {"file_id": file_id, "upload_id": upload_id, "part_size": request.part_size, "part_count": part_count},
-            commit=True,
-        )
-
-    return ApiResponse.success(file_id)
-
-
-@router.post("/uploadFilePart", description="上传分片")
-def upload_file_part(
-    part: UploadFile = FastApiFile(description="上传的文件"),
-    params: str = Form(description="文件参数JSON"),
-    ctx: Context = Depends(),
-) -> ApiResponse[int]:
-    request = UploadPartRequest.model_validate_json(params)
-
-    with ctx.db.begin():
-        # 查询File和MultipartUpload，检查状态
-        row = ctx.db.execute(
-            select(
-                File.id,
-                File.status,
-                File.path,
-                MultipartUpload.upload_id,
-                MultipartUpload.part_size,
-                MultipartUpload.part_count,
+        # 检查是否所有分片都已上传
+        if len(metadata['uploaded_chunks']) != metadata['total_chunks']:
+            missing_chunks = set(range(metadata['total_chunks'])) - set(metadata['uploaded_chunks'])
+            raise HTTPException(
+                status_code=400,
+                detail=f"Missing chunks: {sorted(missing_chunks)}"
             )
-            .select_from(File)
-            .join(MultipartUpload, File.id == MultipartUpload.file_id)
-            .where(File.id == request.file_id)
-        ).first()
-        if row is None:
-            raise ServiceError.param_error("file not found")
-        file_id, status, local_path, upload_id, part_size, part_count = row
-        if status != FileStatus.uploading:
-            raise ServiceError.param_error("file is not uploading")
-        if request.part_number > part_count or request.part_number <= 0:
-            raise ServiceError.param_error("part number out of range")
-        if request.part_number != part_count and part.size != part_size:
-            raise ServiceError.param_error("part size mismatch")
-
-        # 保存分片到临时目录
-        temp_dir = get_temp_upload_dir(ctx, upload_id)
-        part_file = temp_dir / f"part-{request.part_number:05d}"
         
-        try:
-            # 保存分片文件
-            with part_file.open("wb") as f:
-                shutil.copyfileobj(part.file, f)
-            
-            # 计算分片的MD5作为etag（简化实现）
-            import hashlib
-            with part_file.open("rb") as f:
-                etag = hashlib.md5(f.read()).hexdigest()
-            
-            logger.info(f"local upload part success, {file_id=}, {upload_id=}, {request.part_number=}, {part_file=}")
-        except Exception as e:
-            logger.error(
-                f"local upload part error, {file_id=}, {upload_id=}, {request.part_number=}, {e=}"
-            )
-            raise ServiceError.server_error("local upload part error")
-
-        # 插入MultipartUploadPart
-        try:
-            ctx.db.execute(
-                insert(MultipartUploadPart).values(
-                    file_id=file_id, part_number=request.part_number, etag=etag
-                )
-            )
-        except IntegrityError as e:
-            logger.error(f"insert multipart upload part conflict, {file_id=}, {request.part_number=}, {e=}")
-            raise ServiceError.param_error("part already uploaded")
-
-    return ApiResponse.success(file_id)
-
-
-@router.post("/completeMultipartUpload", description="完成分片上传任务，合并分片")
-def complete_multipart_upload_file(request: FileId = Body(), ctx: Context = Depends()) -> ApiResponse[int]:
-    with ctx.db.begin():
-        # 查询File和MultipartUpload，检查状态
-        row = ctx.db.execute(
-            select(File.id, File.status, File.path, MultipartUpload.upload_id, MultipartUpload.part_count)
-            .select_from(File)
-            .join(MultipartUpload, File.id == MultipartUpload.file_id)
-            .where(File.id == request.file_id)
-        ).first()
-        if row is None:
-            raise ServiceError.param_error("file not found")
-        file_id, status, local_path, upload_id, part_count = row
-        if status != FileStatus.uploading:
-            raise ServiceError.param_error("file is not uploading")
-
-        # 查询MultipartUploadPart，检查所有分片是否上传完成
-        uploaded_parts = ctx.db.execute(
-            select(MultipartUploadPart.part_number, MultipartUploadPart.etag)
-            .where(MultipartUploadPart.file_id == file_id)
-            .order_by(MultipartUploadPart.part_number.asc())
-        ).all()
-        if len(uploaded_parts) < part_count:
-            raise ServiceError.param_error("some parts not uploaded")
-
-        # 更新File状态为merging
-        result = ctx.db.execute(update(File).where(File.id == file_id).values(status=FileStatus.merging))
-        if result.rowcount != 1:
-            logger.error(f"update file status error, {file_id=}, {result=}")
-            raise ServiceError.server_error("update file status error")
-        logger.info(f"updated file status, {file_id=}, status={FileStatus.merging}")
-
-    with ctx.db.begin():
-        # 从path提取实际文件路径
-        file_path = Path(local_path.replace("file://", ""))
-        temp_dir = get_temp_upload_dir(ctx, upload_id)
+        # 合并分片
+        temp_upload_dir = os.path.join(TEMP_DIR, upload_id)
+        final_path = os.path.join(UPLOAD_DIR, metadata['filename'])
         
-        # 合并分片文件
-        try:
-            # 确保目标目录存在
-            file_path.parent.mkdir(parents=True, exist_ok=True)
-            
-            # 按顺序合并所有分片
-            with file_path.open("wb") as output_file:
-                for part_number, _ in uploaded_parts:
-                    part_file = temp_dir / f"part-{part_number:05d}"
-                    if not part_file.exists():
-                        raise FileNotFoundError(f"Part file not found: {part_file}")
-                    
-                    with part_file.open("rb") as input_file:
-                        shutil.copyfileobj(input_file, output_file)
-            
-            # 删除临时分片目录
-            shutil.rmtree(temp_dir, ignore_errors=True)
-            
-            file_status = FileStatus.ok
-            logger.info(f"local complete multipart upload success, {file_id=}, {file_path=}, {upload_id=}")
-        except Exception as e:
-            file_status = FileStatus.error
-            logger.error(
-                f"local complete multipart upload error, {file_id=}, {file_path=}, {upload_id=}, {e=}"
+        # 确保目标目录存在
+        os.makedirs(os.path.dirname(final_path) if os.path.dirname(final_path) else UPLOAD_DIR, exist_ok=True)
+        
+        # 合并文件
+        with open(final_path, 'wb') as outfile:
+            for chunk_number in range(metadata['total_chunks']):
+                chunk_path = os.path.join(temp_upload_dir, f"chunk_{chunk_number:06d}")
+                with open(chunk_path, 'rb') as infile:
+                    outfile.write(infile.read())
+        
+        # 验证合并后文件的MD5
+        final_md5 = calculate_file_md5(final_path)
+        if final_md5 != metadata['file_md5']:
+            os.remove(final_path)
+            raise HTTPException(
+                status_code=500,
+                detail=f"File MD5 mismatch after merge. Expected: {metadata['file_md5']}, Got: {final_md5}"
             )
+        
+        # 清理临时文件
+        shutil.rmtree(temp_upload_dir)
+        
+        # 更新元数据状态
+        metadata['status'] = 'completed'
+        metadata['final_path'] = final_path
+        save_upload_metadata(upload_id, metadata)
+        
+        return JSONResponse({
+            "status": "success",
+            "message": "File merged successfully",
+            "file_path": final_path,
+            "file_md5": final_md5
+        })
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
-        # 更新File状态
-        result = ctx.db.execute(update(File).where(File.id == file_id).values(status=file_status))
-        if result.rowcount != 1:
-            logger.error(f"update file status error, {file_id=}, {result=}")
-            raise ServiceError.server_error("update file status error")
-        logger.info(f"updated file status, {file_id=}, status={file_status}")
-
-        # 删除MultipartUpload和MultipartUploadPart
-        result = ctx.db.execute(delete(MultipartUpload).where(MultipartUpload.file_id == file_id))
-        if result.rowcount == 1:
-            logger.info(f"deleted multipart upload, {file_id=}")
-        else:
-            logger.error(f"delete multipart upload error, {file_id=}, {result=}")
-        result = ctx.db.execute(delete(MultipartUploadPart).where(MultipartUploadPart.file_id == file_id))
-        if result.rowcount >= 1:
-            logger.info(f"deleted multipart upload parts, {file_id=}, deleted_rows={result.rowcount}")
-        else:
-            logger.error(f"delete multipart upload parts error, {file_id=}, {result=}")
-
-    # 根据File状态返回结果
-    if file_status != FileStatus.ok:
-        raise ServiceError.server_error("local complete multipart upload error")
-    return ApiResponse.success(file_id)
-
-
-@router.post("/abortMultipartUpload", description="中止分片上传任务")
-def abort_multipart_upload_file(request: FileId = Body(), ctx: Context = Depends()) -> ApiResponse[int]:
-    with ctx.db.begin():
-        # 查询File和MultipartUpload，检查状态
-        row = ctx.db.execute(
-            select(File.id, File.status, File.path, MultipartUpload.upload_id)
-            .select_from(File)
-            .join(MultipartUpload, File.id == MultipartUpload.file_id)
-            .where(File.id == request.file_id)
-        ).first()
-        if row is None:
-            raise ServiceError.param_error("file not found")
-        file_id, status, local_path, upload_id = row
-        if status != FileStatus.uploading:
-            raise ServiceError.param_error("file is not uploading")
-
-        # 删除临时分片目录
-        temp_dir = get_temp_upload_dir(ctx, upload_id)
-        try:
-            if temp_dir.exists():
-                shutil.rmtree(temp_dir)
-            logger.info(f"local abort multipart upload success, {file_id=}, {upload_id=}, {temp_dir=}")
-        except Exception as e:
-            logger.error(f"local abort multipart upload error, {file_id=}, {upload_id=}, {e=}")
-            # 继续执行，不中断流程
-
-        # 更新File状态
-        result = ctx.db.execute(update(File).where(File.id == file_id).values(status=FileStatus.error))
-        if result.rowcount != 1:
-            logger.error(f"update file status error, {file_id=}, {result=}")
-            raise ServiceError.server_error("update file status error")
-        logger.info(f"updated file status, {file_id=}, status={FileStatus.error}")
-
-        # 删除MultipartUpload和MultipartUploadPart
-        result = ctx.db.execute(delete(MultipartUpload).where(MultipartUpload.file_id == file_id))
-        if result.rowcount == 1:
-            logger.info(f"deleted multipart upload, {file_id=}")
-        else:
-            logger.error(f"delete multipart upload error, {file_id=}, {result=}")
-        result = ctx.db.execute(delete(MultipartUploadPart).where(MultipartUploadPart.file_id == file_id))
-        if result.rowcount >= 1:
-            logger.info(f"deleted multipart upload parts, {file_id=}, deleted_rows={result.rowcount}")
-        else:
-            logger.error(f"delete multipart upload parts error, {file_id=}, {result=}")
-
-    return ApiResponse.success(file_id)
-
-
-@router.get("/getMultipartUploadFileStatus", description="获取分片上传任务状态")
-def get_multipart_upload_file_status(
-    file_id: int = Query(description="文件ID"), ctx: Context = Depends()
-) -> ApiResponse[MultipartUploadFileStatus]:
-    # 此函数不需要修改，因为只查询数据库
-    with ctx.db.begin():
-        # 查询File和MultipartUpload，检查状态
-        row = ctx.db.execute(
-            select(File.id, File.status, MultipartUpload.part_size, MultipartUpload.part_count)
-            .select_from(File)
-            .join(MultipartUpload, File.id == MultipartUpload.file_id)
-            .where(File.id == file_id)
-        ).first()
-        if row is None:
-            raise ServiceError.param_error("file not found")
-        file_id, status, part_size, part_count = row
-
-        uploaded_parts, remaining_parts = None, None
-        if status == FileStatus.uploading:
-            # 查询MultipartUploadPart，获取已上传分片
-            uploaded_parts = list(
-                ctx.db.execute(
-                    select(MultipartUploadPart.part_number)
-                    .where(MultipartUploadPart.file_id == file_id)
-                    .order_by(MultipartUploadPart.part_number.asc())
-                )
-                .scalars()
-                .all()
+@app.post("/api/upload/pause/{upload_id}")
+async def pause_upload(upload_id: str):
+    """暂停上传"""
+    try:
+        metadata = load_upload_metadata(upload_id)
+        
+        if metadata['status'] != 'uploading':
+            raise HTTPException(
+                status_code=400,
+                detail=f"Cannot pause upload with status: {metadata['status']}"
             )
-            remaining_parts = [i for i in range(1, part_count + 1) if i not in uploaded_parts]
+        
+        metadata['status'] = 'paused'
+        save_upload_metadata(upload_id, metadata)
+        
+        return JSONResponse({
+            "status": "success",
+            "message": "Upload paused",
+            "uploaded_chunks": metadata['uploaded_chunks']
+        })
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
-        code = ApiResponseCode.SERVER_ERROR if status == FileStatus.error else ApiResponseCode.SUCCESS
-        message = "merge uploaded file error" if status == FileStatus.error else None
-        return ApiResponse(
-            code=code,
-            message=message,
-            data=MultipartUploadFileStatus(
-                file_id=file_id,
-                status=status,
-                part_size=part_size,
-                uploaded_parts=uploaded_parts,
-                remaining_parts=remaining_parts,
-            ),
-        )
+@app.post("/api/upload/resume/{upload_id}")
+async def resume_upload(upload_id: str):
+    """恢复上传（断点续传）"""
+    try:
+        metadata = load_upload_metadata(upload_id)
+        
+        if metadata['status'] != 'paused':
+            raise HTTPException(
+                status_code=400,
+                detail=f"Cannot resume upload with status: {metadata['status']}"
+            )
+        
+        metadata['status'] = 'uploading'
+        save_upload_metadata(upload_id, metadata)
+        
+        # 返回已上传的分片信息，客户端可以从断点继续
+        missing_chunks = set(range(metadata['total_chunks'])) - set(metadata['uploaded_chunks'])
+        
+        return JSONResponse({
+            "status": "success",
+            "message": "Upload resumed",
+            "uploaded_chunks": metadata['uploaded_chunks'],
+            "missing_chunks": sorted(missing_chunks)
+        })
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.delete("/api/upload/cancel/{upload_id}")
+async def cancel_upload(upload_id: str):
+    """取消上传"""
+    try:
+        metadata = load_upload_metadata(upload_id)
+        
+        # 删除临时文件
+        temp_upload_dir = os.path.join(TEMP_DIR, upload_id)
+        if os.path.exists(temp_upload_dir):
+            shutil.rmtree(temp_upload_dir)
+        
+        # 更新元数据状态
+        metadata['status'] = 'cancelled'
+        save_upload_metadata(upload_id, metadata)
+        
+        return JSONResponse({
+            "status": "success",
+            "message": "Upload cancelled and temporary files deleted"
+        })
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/upload/list")
+async def list_uploads(status: Optional[str] = None):
+    """列出所有上传任务"""
+    uploads = []
+    
+    for filename in os.listdir(METADATA_DIR):
+        if filename.endswith('.json'):
+            upload_id = filename[:-5]
+            try:
+                metadata = load_upload_metadata(upload_id)
+                if status is None or metadata['status'] == status:
+                    uploads.append(metadata)
+            except:
+                continue
+    
+    return uploads
+
+@app.get("/api/files")
+async def list_files():
+    """列出所有已上传的文件"""
+    files = []
+    for filename in os.listdir(UPLOAD_DIR):
+        file_path = os.path.join(UPLOAD_DIR, filename)
+        if os.path.isfile(file_path):
+            files.append({
+                "filename": filename,
+                "size": os.path.getsize(file_path),
+                "md5": calculate_file_md5(file_path),
+                "modified": datetime.fromtimestamp(os.path.getmtime(file_path)).isoformat()
+            })
+    return files
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8000)
