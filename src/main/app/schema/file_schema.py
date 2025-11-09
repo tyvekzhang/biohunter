@@ -3,114 +3,54 @@
 
 from __future__ import annotations
 
+from pydantic import BaseModel
+from typing import Optional, List
 from datetime import datetime
-from typing import Optional
-from fastapi import UploadFile
-from pydantic import BaseModel, Field
 
-from fastlib.request import ListRequest
-
-
-class ListFilesRequest(ListRequest):
-    id: Optional[int] = None
-    file_name: Optional[str] = None
-    format: Optional[str] = None
-    file_size: Optional[int] = None
-    create_at: Optional[datetime] = None
-
-
-class File(BaseModel):
-    id: int
-    file_name: Optional[str] = None
-    format: Optional[str] = None
-    file_size: Optional[int] = None
-    create_at: Optional[datetime] = None
+# Chunked upload related schemas
+class InitChunkedUploadRequest(BaseModel):
+    """Request for initializing chunked upload"""
+    original_name: str
+    total_chunks: int
+    file_size: int
+    file_hash: str  # SHA-256 hash
+    file_extension: Optional[str] = None
+    user_id: Optional[int] = None
     conversation_id: Optional[int] = None
 
+class InitChunkedUploadResponse(BaseModel):
+    """Response for chunked upload initialization"""
+    status: str
+    upload_id: Optional[str] = None
+    message: str
 
-class FileDetail(BaseModel):
-    id: int
-    file_name: Optional[str] = None
-    format: Optional[str] = None
-    file_size: Optional[int] = None
-    create_at: Optional[datetime] = None
-    conversation_id: Optional[int] = None
+class ChunkUploadRequest(BaseModel):
+    """Request for uploading a chunk"""
+    upload_id: str
+    chunk_number: int
+    chunk_hash: str  # SHA-256
 
+class ChunkUploadResponse(BaseModel):
+    """Response for chunk upload"""
+    chunk_number: int
+    status: str
+    message: str
 
-class CreateFile(BaseModel):
-    file_name: Optional[str] = None
-    format: Optional[str] = None
-    file_size: Optional[int] = None
-    conversation_id: Optional[int] = None
+class ChunkedUploadStatus(BaseModel):
+    """Chunked upload status"""
+    upload_id: str
+    original_name: str
+    total_chunks: int
+    uploaded_chunks: List[int]
+    file_size: int
+    file_hash: str
+    status: str  # 'uploading', 'completed', 'paused', 'cancelled'
+    created_at: datetime
+    updated_at: datetime
 
-
-class CreateFileRequest(BaseModel):
-    file: CreateFile = Field(alias="file")
-
-
-class UpdateFile(BaseModel):
-    id: int
-    file_name: Optional[str] = None
-    format: Optional[str] = None
-    file_size: Optional[int] = None
-    conversation_id: Optional[int] = None
-
-
-class UpdateFileRequest(BaseModel):
-    file: UpdateFile = Field(alias="file")
-
-
-class BatchGetFilesResponse(BaseModel):
-    files: list[FileDetail] = Field(default_factory=list, alias="files")
-
-
-class BatchCreateFilesRequest(BaseModel):
-    files: list[CreateFile] = Field(default_factory=list, alias="files")
-
-
-class BatchCreateFilesResponse(BaseModel):
-    files: list[File] = Field(default_factory=list, alias="files")
-
-
-class BatchUpdateFile(BaseModel):
-    file_name: Optional[str] = None
-    format: Optional[str] = None
-    file_size: Optional[int] = None
-    conversation_id: Optional[int] = None
-
-
-class BatchUpdateFilesRequest(BaseModel):
-    ids: list[int]
-    file: BatchUpdateFile = Field(alias="file")
-
-
-class BatchPatchFilesRequest(BaseModel):
-    files: list[UpdateFile] = Field(default_factory=list, alias="files")
-
-
-class BatchUpdateFilesResponse(BaseModel):
-     files: list[File] = Field(default_factory=list, alias="files")
-
-
-class BatchDeleteFilesRequest(BaseModel):
-    ids: list[int]
-
-
-class ExportFile(File):
-    pass
-
-
-class ExportFilesRequest(BaseModel):
-    ids: list[int]
-
-
-class ImportFilesRequest(BaseModel):
-    file: UploadFile
-
-
-class ImportFile(CreateFile):
-    err_msg: Optional[str] = Field(None, alias="errMsg")
-
-
-class ImportFilesResponse(BaseModel):
-    files: list[ImportFile] = Field(default_factory=list, alias="files")
+class MergeChunksResponse(BaseModel):
+    """Response for chunk merging"""
+    status: str
+    file_id: int
+    file_uuid: str
+    message: str

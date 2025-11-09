@@ -1,30 +1,18 @@
 # SPDX-License-Identifier: MIT
 """File REST Controller"""
 from __future__ import annotations
-from typing import Annotated
+from typing import Optional
 
-from fastlib.response import ListResponse
-from fastapi import APIRouter, Query, Form
-from starlette.responses import StreamingResponse
+from fastlib.contextvars import get_current_user
+from fastapi import APIRouter, File, Query, Form, UploadFile
 
 from src.main.app.mapper.file_mapper import fileMapper
-from src.main.app.model.file_model import FileModel
 from src.main.app.schema.file_schema import (
-    ListFilesRequest,
-    File,
-    CreateFileRequest,
-    FileDetail,
-    UpdateFileRequest,
-    BatchDeleteFilesRequest,
-    BatchUpdateFilesRequest,
-    BatchUpdateFilesResponse,
-    BatchCreateFilesRequest,
-    BatchCreateFilesResponse,
-    ExportFilesRequest,
-    ImportFilesResponse,
-    BatchGetFilesResponse,
-    ImportFilesRequest,
-    ImportFile, BatchPatchFilesRequest,
+    ChunkUploadResponse,
+    ChunkedUploadStatus,
+    InitChunkedUploadRequest,
+    InitChunkedUploadResponse,
+    MergeChunksResponse,
 )
 from src.main.app.service.impl.file_service_impl import FileServiceImpl
 from src.main.app.service.file_service import FileService
@@ -33,295 +21,152 @@ file_router = APIRouter()
 file_service: FileService = FileServiceImpl(mapper=fileMapper)
 
 
-@file_router.get("/files/{id}")
-async def get_file(id: int) -> FileDetail:
+@file_router.post("/files:initChunkedUpload")
+async def init_chunked_upload(
+    req: InitChunkedUploadRequest,
+) -> InitChunkedUploadResponse:
     """
-    Retrieve file details.
-
+    Initialize chunked upload session with instant upload support.
+    
     Args:
-
-        id: Unique ID of the file resource.
-
+        req: Request containing file metadata and SHA-256 hash
+        
     Returns:
-
-        FileDetail: The file object containing all its details.
-
+        InitChunkedUploadResponse: Upload ID or instant upload confirmation
+        
     Raises:
-
-        HTTPException(403 Forbidden): If the current user does not have permission.
-        HTTPException(404 Not Found): If the requested file does not exist.
+        HTTPException(403 Forbidden): If user lacks upload permission
     """
-    file_record: FileModel = await file_service.get_file(id=id)
-    return FileDetail(**file_record.model_dump())
+    req.user_id = get_current_user()
+    return await file_service.init_chunked_upload(req)
 
-
-@file_router.get("/files")
-async def list_files(
-    req: Annotated[ListFilesRequest, Query()],
-) -> ListResponse[File]:
+@file_router.post("/files:uploadChunk")
+async def upload_chunk(
+    upload_id: str = Form(...),
+    chunk_number: int = Form(...),
+    chunk_hash: str = Form(...),
+    file: UploadFile = File(...)
+) -> ChunkUploadResponse:
     """
-    List files with pagination.
-
+    Upload a single file chunk with integrity verification.
+    
     Args:
-
-        req: Request object containing pagination, filter and sort parameters.
-
+        upload_id: Upload session identifier
+        chunk_number: Sequential chunk number
+        chunk_hash: SHA-256 hash of chunk content
+        file: Binary chunk content
+        
     Returns:
-
-        ListResponse: Paginated list of files and total count.
-
+        ChunkUploadResponse: Upload result for this chunk
+        
     Raises:
-
-        HTTPException(403 Forbidden): If user don't have access rights.
+        HTTPException(400 Bad Request): If chunk validation fails
+        HTTPException(404 Not Found): If upload session doesn't exist
     """
-    file_records, total = await file_service.list_files(req=req)
-    return ListResponse(records=file_records, total=total)
-
-
-@file_router.post("/files")
-async def creat_file(
-    req: CreateFileRequest,
-) -> File:
-    """
-    Create a new file.
-
-    Args:
-
-        req: Request object containing file creation data.
-
-    Returns:
-
-         File: The file object.
-
-    Raises:
-
-        HTTPException(403 Forbidden): If the current user don't have access rights.
-        HTTPException(409 Conflict): If the creation data already exists.
-    """
-    file: FileModel = await file_service.create_file(req=req)
-    return File(**file.model_dump())
-
-
-@file_router.put("/files")
-async def update_file(
-    req: UpdateFileRequest,
-) -> File:
-    """
-    Update an existing file.
-
-    Args:
-
-        req: Request object containing file update data.
-
-    Returns:
-
-        File: The updated file object.
-
-    Raises:
-
-        HTTPException(403 Forbidden): If the current user doesn't have update permissions.
-        HTTPException(404 Not Found): If the file to update doesn't exist.
-    """
-    file: FileModel = await file_service.update_file(req=req)
-    return File(**file.model_dump())
-
-
-@file_router.delete("/files/{id}")
-async def delete_file(
-    id: int,
-) -> None:
-    """
-    Delete file by ID.
-
-    Args:
-
-        id: The ID of the file to delete.
-
-    Raises:
-
-        HTTPException(403 Forbidden): If the current user doesn't have access permissions.
-        HTTPException(404 Not Found): If the file with given ID doesn't exist.
-    """
-    await file_service.delete_file(id=id)
-
-
-@file_router.get("/files:batchGet")
-async def batch_get_files(
-    ids: list[int] = Query(..., description="List of file IDs to retrieve"),
-) -> BatchGetFilesResponse:
-    """
-    Retrieves multiple files by their IDs.
-
-    Args:
-
-        ids (list[int]): A list of file resource IDs.
-
-    Returns:
-
-        list[FileDetail]: A list of file objects matching the provided IDs.
-
-    Raises:
-
-        HTTPException(403 Forbidden): If the current user does not have access rights.
-        HTTPException(404 Not Found): If one of the requested files does not exist.
-    """
-    file_records: list[FileModel] = await file_service.batch_get_files(ids)
-    file_detail_list: list[FileDetail] = [
-        FileDetail(**file_record.model_dump()) for file_record in file_records
-    ]
-    return BatchGetFilesResponse(files=file_detail_list)
-
-
-@file_router.post("/files:batchCreate")
-async def batch_create_files(
-    req: BatchCreateFilesRequest,
-) -> BatchCreateFilesResponse:
-    """
-    Batch create files.
-
-    Args:
-
-        req (BatchCreateFilesRequest): Request body containing a list of file creation items.
-
-    Returns:
-
-        BatchCreateFilesResponse: Response containing the list of created files.
-
-    Raises:
-
-        HTTPException(403 Forbidden): If the current user lacks access rights.
-        HTTPException(409 Conflict): If any file creation data already exists.
-    """
-
-    file_records = await file_service.batch_create_files(req=req)
-    file_list: list[File] = [
-        File(**file_record.model_dump()) for file_record in file_records
-    ]
-    return BatchCreateFilesResponse(files=file_list)
-
-
-@file_router.post("/files:batchUpdate")
-async def batch_update_files(
-    req: BatchUpdateFilesRequest,
-) -> BatchUpdateFilesResponse:
-    """
-    Batch update multiple files with the same changes.
-
-    Args:
-
-        req (BatchUpdateFilesRequest): The batch update request data with ids.
-
-    Returns:
-
-        BatchUpdateBooksResponse: Contains the list of updated files.
-
-    Raises:
-
-        HTTPException 403 (Forbidden): If user lacks permission to modify files
-        HTTPException 404 (Not Found): If any specified file ID doesn't exist
-    """
-    file_records: list[FileModel] = await file_service.batch_update_files(req=req)
-    file_list: list[File] = [File(**file.model_dump()) for file in file_records]
-    return BatchUpdateFilesResponse(files=file_list)
-
-
-@file_router.post("/files:batchPatch")
-async def batch_patch_files(
-    req: BatchPatchFilesRequest,
-) -> BatchUpdateFilesResponse:
-    """
-    Batch update multiple files with individual changes.
-
-    Args:
-
-        req (BatchPatchFilesRequest): The batch patch request data.
-
-    Returns:
-
-        BatchUpdateBooksResponse: Contains the list of updated files.
-
-    Raises:
-
-        HTTPException 403 (Forbidden): If user lacks permission to modify files
-        HTTPException 404 (Not Found): If any specified file ID doesn't exist
-    """
-    file_records: list[FileModel] = await file_service.batch_patch_files(req=req)
-    file_list: list[File] = [File(**file.model_dump()) for file in file_records]
-    return BatchUpdateFilesResponse(files=file_list)
-
-
-@file_router.post("/files:batchDelete")
-async def batch_delete_files(
-    req: BatchDeleteFilesRequest,
-) -> None:
-    """
-    Batch delete files.
-
-    Args:
-        req (BatchDeleteFilesRequest): Request object containing delete info.
-
-    Raises:
-        HTTPException(404 Not Found): If any of the files do not exist.
-        HTTPException(403 Forbidden): If user don't have access rights.
-    """
-    await file_service.batch_delete_files(req=req)
-
-
-@file_router.get("/files:exportTemplate")
-async def export_files_template() -> StreamingResponse:
-    """
-    Export the Excel template for file import.
-
-    Returns:
-        StreamingResponse: An Excel file stream containing the import template.
-
-    Raises:
-        HTTPException(403 Forbidden): If user don't have access rights.
-    """
-
-    return await file_service.export_files_template()
-
-
-@file_router.get("/files:export")
-async def export_files(
-    req: ExportFilesRequest = Query(...),
-) -> StreamingResponse:
-    """
-    Export file data based on the provided file IDs.
-
-    Args:
-        req (ExportFilesRequest): Query parameters specifying the files to export.
-
-    Returns:
-        StreamingResponse: A streaming response containing the generated Excel file.
-
-    Raises:
-        HTTPException(403 Forbidden): If the current user lacks access rights.
-        HTTPException(404 Not Found ): If no matching files are found.
-    """
-    return await file_service.export_files(
-        req=req,
+    return await file_service.upload_chunk(
+        upload_id=upload_id,
+        chunk_number=chunk_number,
+        chunk_hash=chunk_hash,
+        file=file
     )
 
-@file_router.post("/files:import")
-async def import_files(
-    req: ImportFilesRequest = Form(...),
-) -> ImportFilesResponse:
+@file_router.get("/files:uploadStatus/{upload_id}")
+async def get_upload_status(upload_id: str) -> ChunkedUploadStatus:
     """
-    Import files from an uploaded Excel file.
-
+    Get chunked upload status for resumable uploads.
+    
     Args:
-        req (UploadFile): The Excel file containing file data to import.
-
+        upload_id: Upload session identifier
+        
     Returns:
-        ImportFilesResponse: List of successfully parsed file data.
-
+        ChunkedUploadStatus: Detailed upload progress information
+        
     Raises:
-        HTTPException(400 Bad Request): If the uploaded file is invalid or cannot be parsed.
-        HTTPException(403 Forbidden): If the current user lacks access rights.
+        HTTPException(404 Not Found): If upload session doesn't exist
     """
+    return await file_service.get_upload_status(upload_id)
 
-    import_files_resp: list[ImportFile] = await file_service.import_files(
-        req=req
-    )
-    return ImportFilesResponse(files=import_files_resp)
+@file_router.post("/files:mergeChunks/{upload_id}")
+async def merge_chunks(upload_id: str) -> MergeChunksResponse:
+    """
+    Merge all uploaded chunks into final file.
+    
+    Args:
+        upload_id: Upload session identifier
+        
+    Returns:
+        MergeChunksResponse: Final file information including ID
+        
+    Raises:
+        HTTPException(400 Bad Request): If chunks are incomplete
+        HTTPException(500 Internal Server Error): If merge verification fails
+    """
+    return await file_service.merge_chunks(upload_id)
+
+@file_router.post("/files:pauseUpload/{upload_id}")
+async def pause_upload(upload_id: str) -> dict:
+    """
+    Pause an active chunked upload session.
+    
+    Args:
+        upload_id: Upload session identifier
+        
+    Returns:
+        dict: Pause confirmation with uploaded chunks list
+        
+    Raises:
+        HTTPException(400 Bad Request): If upload cannot be paused
+        HTTPException(404 Not Found): If upload session doesn't exist
+    """
+    return await file_service.pause_upload(upload_id)
+
+@file_router.post("/files:resumeUpload/{upload_id}")
+async def resume_upload(upload_id: str) -> dict:
+    """
+    Resume a paused chunked upload session.
+    
+    Args:
+        upload_id: Upload session identifier
+        
+    Returns:
+        dict: Resume confirmation with missing chunks list
+        
+    Raises:
+        HTTPException(400 Bad Request): If upload cannot be resumed
+        HTTPException(404 Not Found): If upload session doesn't exist
+    """
+    return await file_service.resume_upload(upload_id)
+
+@file_router.delete("/files:cancelUpload/{upload_id}")
+async def cancel_upload(upload_id: str) -> dict:
+    """
+    Cancel chunked upload and remove temporary files.
+    
+    Args:
+        upload_id: Upload session identifier
+        
+    Returns:
+        dict: Cancellation confirmation
+        
+    Raises:
+        HTTPException(404 Not Found): If upload session doesn't exist
+    """
+    return await file_service.cancel_upload(upload_id)
+
+@file_router.get("/files:listUploads")
+async def list_uploads(
+    status: Optional[str] = Query(None, description="Filter by upload status")
+) -> list[ChunkedUploadStatus]:
+    """
+    List all chunked upload sessions.
+    
+    Args:
+        status: Optional status filter (uploading, completed, paused, cancelled)
+        
+    Returns:
+        List[ChunkedUploadStatus]: List of upload sessions
+        
+    Raises:
+        HTTPException(403 Forbidden): If user lacks view permission
+    """
+    return await file_service.list_uploads(status=status)

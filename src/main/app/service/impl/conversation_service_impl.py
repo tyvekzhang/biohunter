@@ -83,8 +83,8 @@ class ConversationServiceImpl(BaseServiceImpl[ConversationMapper, ConversationMo
             filters[FilterOperators.EQ]["id"] = req.id
         if req.title is not None and req.title != "":
             filters[FilterOperators.EQ]["title"] = req.title
-        if req.create_at is not None and req.create_at != "":
-            filters[FilterOperators.EQ]["create_at"] = req.create_at
+        if req.created_at is not None and req.created_at != "":
+            filters[FilterOperators.EQ]["created_at"] = req.created_at
         if req.update_at is not None and req.update_at != "":
             filters[FilterOperators.EQ]["update_at"] = req.update_at
         sort_list = None

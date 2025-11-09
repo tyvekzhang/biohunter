@@ -40,7 +40,7 @@ class ConversationBase(SQLModel):
             comment="标题"
         )
     )
-    create_at: Optional[datetime] = Field(
+    created_at: Optional[datetime] = Field(
         sa_type=DateTime,
         default_factory=lambda: datetime.now(timezone.utc),sa_column_kwargs={"comment": "创建时间"}
     )
