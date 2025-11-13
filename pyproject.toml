@@ -33,6 +33,9 @@ dependencies = [
   "autogen-agentchat==0.5.7",
   "autogen-ext[openai]==0.5.7",
   "fastmcp==2.13.0.2",
+  "scanpy>=1.11.5",
+  "reportlab>=4.4.4",
+  "biopython>=1.86",
 ]
 
 [dependency-groups]
