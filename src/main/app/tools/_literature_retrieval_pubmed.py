@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: MIT
 """
 TargetMining Tool - A comprehensive tool for extracting therapeutic targets from PubMed literature
 
