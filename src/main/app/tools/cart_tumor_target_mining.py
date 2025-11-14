@@ -60,7 +60,9 @@ def cart_target_mining(
     返回：
     经过多级过滤的CAR-T靶点基因列表，包含每个基因的筛选信息和文献支持证据（如果启用）
     """
+    
     message: ChatMessage = get_current_message()
+    output_dir = f"/data/output_biohunter/{message.conversation_id}"
     result = {
         "Status": "Success",
         "Error": "",

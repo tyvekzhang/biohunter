@@ -32,7 +32,7 @@ class TargetMiningConfig:
         # LLM Configuration
         self.api_key = llm_config.api_key
         self.base_url = llm_config.base_url
-        self.model = (llm_config.model,)
+        self.model = llm_config.model
 
         # Processing Configuration
         self.batch_size = 50
