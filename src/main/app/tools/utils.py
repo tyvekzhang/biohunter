@@ -1,4 +1,3 @@
-# SPDX-License-Identifier: MIT
 import os
 import sys
 import contextlib

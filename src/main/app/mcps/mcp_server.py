@@ -12,8 +12,8 @@ mcp = FastMCP("Biohunter")
     name="scRNA_cart_target_mining",
     description=f"""【肿瘤细胞CAR-T靶点挖掘】使用严谨的过滤策略，挖掘CAR-T细胞靶点基因，确保靶点基因的安全性和有效性。
     参数：
-    positive_path: 阳性参考文件路径
-    negative_path: 阴性参考文件路径
+    positive_path: 阳性参考文件路径, 非必填项
+    negative_path: 阴性参考文件路径, 非必填项
     output_dir: 输出目录路径
     target_celltype: 用户输入的CAR-T靶点细胞类型
     surface_path: 细胞表面基因参考文件路径,文件路径为'{os.path.dirname(os.path.abspath(__file__))}/database/CellPhoneDB_CSPA_Surfaceome_HPA.csv'

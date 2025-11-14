@@ -1,6 +1,6 @@
-# SPDX-License-Identifier: MIT
 import os
 import traceback
+from typing import Optional
 
 import numpy as np
 import pandas as pd
@@ -19,8 +19,6 @@ from .utils import create_output_directories
 
 
 def cart_target_mining(
-    positive_path: str,
-    negative_path: str,
     output_dir: str,
     target_celltype: str,
     surface_path: str,
@@ -28,6 +26,8 @@ def cart_target_mining(
     healthy_path: str,
     drug_path: str,
     query: str,
+    positive_path: Optional[str] = None,
+    negative_path: Optional[str] = None,
     cell_type_key: str = "cell_type",
     malign_label: str = "cnv_status",
     filter_threshold: float = 2,

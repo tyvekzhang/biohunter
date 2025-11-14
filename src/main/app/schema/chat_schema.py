@@ -69,7 +69,7 @@ class ErrorMessage(StreamMessage):
 class ChatMessage(BaseMessage[StreamMessage]):
     user_id: Annotated[int, Field(description="消息所属的用户ID")]
     task_id: Annotated[str, Field(description="消息所属的任务ID")]
-    conversation_id: Annotated[str, Field(description="消息所属的对话ID")]
+    conversation_id: Annotated[int, Field(description="消息所属的对话ID")]
     type: int = Field(
         ..., description="消息类型：1-文件检索，2-单细胞数据", ge=1, le=3, example=1
     )
