@@ -71,7 +71,11 @@ class ChatMessage(BaseMessage[StreamMessage]):
     task_id: Annotated[str, Field(description="消息所属的任务ID")]
     conversation_id: Annotated[int, Field(description="消息所属的对话ID")]
     type: int = Field(
-        ..., description="消息类型：1-文件检索，2-单细胞数据", ge=1, le=3, example=1
+        ..., 
+        description="消息类型：1-文件检索，2-单细胞数据", 
+        ge=1, 
+        le=3, 
+        json_schema_extra={"example": 1}
     )
     content: Annotated[
         str,
@@ -106,7 +110,10 @@ class ChatRequest(BaseModel):
     """聊天请求数据模型"""
 
     conversation_id: int = Field(
-        ..., description="会话ID，用于标识和关联特定的对话会话", ge=1, example=12345
+        ..., 
+        description="会话ID，用于标识和关联特定的对话会话", 
+        ge=1, 
+        json_schema_extra={"example": 12345}
     )
 
     content: str = Field(
@@ -114,19 +121,25 @@ class ChatRequest(BaseModel):
         description="用户输入的文本消息内容",
         min_length=1,
         max_length=4000,
-        example="请分析这个基因的细胞表面表达情况",
+        json_schema_extra={"example": "请分析这个基因的细胞表面表达情况"}
     )
 
     type: int = Field(
-        ..., description="消息类型：1-文件检索，2-单细胞数据", ge=1, le=3, example=1
+        ..., 
+        description="消息类型：1-文件检索，2-单细胞数据", 
+        ge=1, 
+        le=3, 
+        json_schema_extra={"example": 1}
     )
 
     options: dict = Field(
         default_factory=dict,
         description="扩展选项字典，用于传递额外的配置参数",
-        example={
-            "analysis_depth": "detailed",
-            "include_references": True,
-            "language": "zh-CN",
-        },
+        json_schema_extra={
+            "example": {
+                "analysis_depth": "detailed",
+                "include_references": True,
+                "language": "zh-CN",
+            }
+        }
     )

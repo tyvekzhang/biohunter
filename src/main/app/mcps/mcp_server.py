@@ -14,7 +14,6 @@ mcp = FastMCP("Biohunter")
     参数：
     positive_path: 阳性参考文件路径, 非必填项
     negative_path: 阴性参考文件路径, 非必填项
-    output_dir: 输出目录路径
     target_celltype: 用户输入的CAR-T靶点细胞类型
     surface_path: 细胞表面基因参考文件路径,文件路径为'{os.path.dirname(os.path.abspath(__file__))}/database/CellPhoneDB_CSPA_Surfaceome_HPA.csv'
     Tcell_path: 健康T细胞基因参考文件路径，文件路径为'{os.path.dirname(os.path.abspath(__file__))}/database/Tcell_genes.csv'
@@ -33,7 +32,6 @@ mcp = FastMCP("Biohunter")
     """,
 )
 def scRNA_cart_target_mining(
-    output_dir: str,
     surface_path: str,
     Tcell_path: str,
     healthy_path: str,
@@ -55,7 +53,6 @@ def scRNA_cart_target_mining(
     result = cart_target_mining(
         positive_path=positive_path,
         negative_path=negative_path,
-        output_dir=output_dir,
         target_celltype=target_celltype,
         surface_path=surface_path,
         Tcell_path=Tcell_path,

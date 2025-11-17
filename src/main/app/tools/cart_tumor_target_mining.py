@@ -1,3 +1,4 @@
+from datetime import datetime
 import os
 import traceback
 from typing import Optional
@@ -8,6 +9,7 @@ import scanpy as sc
 
 from src.main.app.agent.context import get_current_message
 from src.main.app.schema.chat_schema import ChatMessage
+from src.main.app.tools._file_manager import INPUT_DIR
 from src.main.app.tools._literature_retrieval_pubmed import (
     TargetMiningConfig,
     TargetMiningTool,
@@ -19,7 +21,6 @@ from .utils import create_output_directories
 
 
 def cart_target_mining(
-    output_dir: str,
     target_celltype: str,
     surface_path: str,
     Tcell_path: str,
@@ -40,9 +41,8 @@ def cart_target_mining(
     肿瘤细胞CAR-T靶点挖掘的核心实现
 
     参数：
-    positive_path: 阳性参考文件路径（必需），包含已知有效的CAR-T靶点或相关基因
-    negative_path: 阴性参考文件路径（必需），包含已知无效或不安全的靶点基因
-    output_dir: 输出目录路径
+    positive_path: 阳性参考文件路径（非必需）
+    negative_path: 阴性参考文件路径（非必需）
     target_celltype: 用户输入的CAR-T靶点细胞类型
     surface_path: 细胞表面基因参考文件路径，文件名为'CellPhoneDB_CSPA_Surfaceome_HPA.csv'
     Tcell_path: 健康T细胞基因参考文件路径，文件名为'Tcell_genes.csv'
@@ -60,9 +60,9 @@ def cart_target_mining(
     返回：
     经过多级过滤的CAR-T靶点基因列表，包含每个基因的筛选信息和文献支持证据（如果启用）
     """
-    
+
     message: ChatMessage = get_current_message()
-    output_dir = f"/data/output_biohunter/{message.conversation_id}"
+    output_dir = f"{INPUT_DIR}/{datetime.now().strftime('%Y-%m')}/{message.user_id}/{message.conversation_id}"
     result = {
         "Status": "Success",
         "Error": "",
@@ -85,10 +85,7 @@ def cart_target_mining(
             if not os.path.exists(negative_path):
                 raise FileNotFoundError(f"输入文件 {negative_path} 不存在")
         else:
-            query = (
-                query.replace("\n", " ")
-                .replace("  ", " ")
-            )
+            query = query.replace("\n", " ").replace("  ", " ")
 
         # 使用新的目录创建函数
         output_dir, figure_path = create_output_directories(

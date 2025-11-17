@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 from abc import ABC, abstractmethod
+from typing import Optional
 
 
 from fastapi import UploadFile
@@ -63,4 +64,23 @@ class FileService(BaseService[FileModel], ABC):
     @abstractmethod
     async def cancel_upload(self, upload_id: str) -> dict:
         """Cancel upload session and cleanup"""
+        pass
+    
+    @abstractmethod 
+    async def use_user_conversation_files(
+        self,
+        user_id: int,
+        conversation_id: int,
+        target_directory: str
+    ) -> str:
+        pass
+    
+    @abstractmethod
+    async def import_local_file_to_uploads(
+        self,
+        local_file_path: str,
+        user_id: int,
+        conversation_id: int,
+        original_name: Optional[str] = None
+    ) -> FileModel:
         pass

@@ -22,6 +22,7 @@ class FileMapper(SqlModelMapper[FileModel]):
             select(self.model)
             .where(self.model.file_hash == file_hash)
             .where(self.model.state == 1)
+            .where(self.model.deleted_at.is_(None))
         )
         return result.one_or_none()
 
@@ -34,7 +35,7 @@ class FileMapper(SqlModelMapper[FileModel]):
         result = await db_session.exec(
             select(self.model)
             .where(self.model.file_uuid == file_uuid)
-            .where(self.model.deleted_at.is_not(None))
+            .where(self.model.deleted_at.is_(None))
         )
         return result.one_or_none()
 
