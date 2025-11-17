@@ -2,9 +2,20 @@ import os
 from typing import Optional
 from fastmcp import FastMCP
 
+from src.main.app.tools._file_manager import file_context_aware
 from src.main.app.tools.cart_tumor_target_mining import cart_target_mining
 
 mcp = FastMCP("Biohunter")
+
+@mcp.tool(
+    name="scRNA_file_context_aware",
+    description="【获取用户输入数据】把用户上传的数据下载到服务器, 供后续分析使用, 第一步一定要执行。",
+)
+def scRNA_file_context_aware(
+    target: str = "Discover and manage files",
+    mode: str = "auto",
+):
+    return file_context_aware()
 
 
 # ========== 肿瘤CAR-T靶点挖掘 ==========

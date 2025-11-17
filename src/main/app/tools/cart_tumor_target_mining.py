@@ -75,7 +75,9 @@ def cart_target_mining(
     try:
         # **********************************************非方法主体*****************************************
         # 对输入做必要的校验
-        if positive_path or negative_path:
+        if msg_type == 2:
+            if not positive_path or not negative_path:
+                raise ValueError("调用scRNA_file_context_aware获取文件信息, 并给positive_path和negative_path赋值")
             if not positive_path.endswith(".h5ad") or not negative_path.endswith(
                 ".h5ad"
             ):
