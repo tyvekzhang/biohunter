@@ -9,7 +9,7 @@ import scanpy as sc
 
 from src.main.app.agent.context import get_current_message
 from src.main.app.schema.chat_schema import ChatMessage
-from src.main.app.tools._file_manager import INPUT_DIR
+from src.main.app.tools._file_manager import INPUT_DIR, OUTPUT_DIR
 from src.main.app.tools._literature_retrieval_pubmed import (
     TargetMiningConfig,
     TargetMiningTool,
@@ -62,7 +62,7 @@ def cart_target_mining(
     """
 
     message: ChatMessage = get_current_message()
-    output_dir = f"{INPUT_DIR}/{datetime.now().strftime('%Y-%m')}/{message.user_id}/{message.conversation_id}"
+    output_dir = f"{OUTPUT_DIR}/{datetime.now().strftime('%Y-%m')}/{message.user_id}/{message.conversation_id}"
     result = {
         "Status": "Success",
         "Error": "",
@@ -77,15 +77,20 @@ def cart_target_mining(
         # 对输入做必要的校验
         if msg_type == 2:
             if not positive_path or not negative_path:
-                raise ValueError("调用scRNA_file_context_aware获取文件信息, 并给positive_path和negative_path赋值")
+                raise RuntimeError("调用scRNA_file_context_aware获取文件信息, 并给positive_path和negative_path赋值")
             if not positive_path.endswith(".h5ad") or not negative_path.endswith(
                 ".h5ad"
             ):
                 raise ValueError("输入文件必须是 .h5ad 格式")
+            
             if not os.path.exists(positive_path):
-                raise FileNotFoundError(f"输入文件 {positive_path} 不存在")
+                positive_path = f"{INPUT_DIR}/{message.user_id}/{message.conversation_id}/{os.path.basename(positive_path)}"
+                if not os.path.exists(positive_path):
+                    raise FileNotFoundError(f"输入文件 {positive_path} 不存在")
             if not os.path.exists(negative_path):
-                raise FileNotFoundError(f"输入文件 {negative_path} 不存在")
+                negative_path = f"{INPUT_DIR}/{message.user_id}/{message.conversation_id}/{os.path.basename(negative_path)}"
+                if not os.path.exists(negative_path):
+                    raise FileNotFoundError(f"输入文件 {negative_path} 不存在")
         else:
             query = query.replace("\n", " ").replace("  ", " ")
 

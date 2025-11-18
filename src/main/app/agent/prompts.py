@@ -18,7 +18,7 @@ Your role is to:
 
 Special rule:
 - If the user input looks like a PubMed query, 
-  then directly call the tool `scRNA_cart_target_mining` with the query text as input.
+  then directly call the tool `scRNA_cart_target_mining` with the query text as input, otherwise use scRNA_file_context_aware tool firstly.
 
 General rules:
 - Be thorough and handle errors gracefully

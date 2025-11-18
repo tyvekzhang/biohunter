@@ -38,6 +38,20 @@ class FileMapper(SqlModelMapper[FileModel]):
             .where(self.model.deleted_at.is_(None))
         )
         return result.one_or_none()
+    
+    async def get_by_user_conversation_id(
+        self, user_id: int, conversation_id: int, db_session: Optional[AsyncSession] = None
+    ) -> Optional[FileModel]:
+        
+        db_session = db_session or self.db.session
+        result = await db_session.exec(
+            select(self.model)
+            .where(self.model.user_id == user_id)
+            .where(self.model.conversation_id == conversation_id)
+            .where(self.model.state == 1)
+            .where(self.model.deleted_at.is_(None))
+        )
+        return result.all()
 
 
 fileMapper = FileMapper(FileModel)

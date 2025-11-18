@@ -5,7 +5,7 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from typing import Optional
 
-
+from sqlmodel.ext.asyncio.session import AsyncSession
 from fastapi import UploadFile
 from fastlib.service.base_service import BaseService
 from src.main.app.model.file_model import FileModel
@@ -71,7 +71,8 @@ class FileService(BaseService[FileModel], ABC):
         self,
         user_id: int,
         conversation_id: int,
-        target_directory: str
+        target_directory: str,
+        session: AsyncSession
     ) -> str:
         pass
     

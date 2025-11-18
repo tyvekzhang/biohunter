@@ -13,6 +13,8 @@ import uuid
 import aiofiles
 from fastapi import HTTPException, UploadFile
 
+from sqlmodel.ext.asyncio.session import AsyncSession
+
 from fastlib.service.impl.base_service_impl import BaseServiceImpl
 from fastlib.logging import logger
 from fastlib.config.utils import ProjectInfo
@@ -221,9 +223,12 @@ class FileServiceImpl(BaseServiceImpl[FileMapper, FileModel], FileService):
                 )
 
             # Generate storage filename
-            storage_name = f"{upload_id}_{metadata['original_name']}"
-            final_path = os.path.join(self.UPLOAD_DIR, storage_name)
-
+            storage_name = metadata['original_name']
+            final_path = os.path.join(self.UPLOAD_DIR, str(metadata["user_id"]), str(metadata["conversation_id"]), storage_name)
+            final_dir = os.path.dirname(final_path)
+            if not os.path.exists(final_dir):
+                os.makedirs(final_dir, exist_ok=True)
+            
             # Merge chunks
             temp_upload_dir = os.path.join(self.TEMP_DIR, upload_id)
             with open(final_path, "wb") as outfile:
@@ -386,31 +391,19 @@ class FileServiceImpl(BaseServiceImpl[FileMapper, FileModel], FileService):
         return uploads
 
     async def use_user_conversation_files(
-        self, user_id: int, conversation_id: int, target_directory: str
+        self, user_id: int, conversation_id: int, target_directory: str, session: AsyncSession,
     ) -> list[str]:
         try:
             # Get all files for the user and conversation
-            files = await self.get_user_conversation_files(user_id, conversation_id)
+            files = await self.mapper.get_by_user_conversation_id(user_id, conversation_id, session)
 
             if not files:
                 return ["No files found for the conversation"]
 
-            # Create target directory if it doesn't exist
-            os.makedirs(target_directory, exist_ok=True)
-
             # Copy each file to the target directory
             use_files = []
             for file in files:
-                if not os.path.exists(file.storage_path):
-                    logger.warning(f"Source file not found: {file.storage_path}")
-                    continue
-
-                # Generate target file path
-                target_file_path = os.path.join(target_directory, file.original_name)
-
-                use_files.append(target_file_path)
-                logger.info(f"Copied file: {file.original_name} to {target_file_path}")
-
+                use_files.append(file.storage_path)
             if not use_files:
                 raise HTTPException(
                     status_code=500, detail="No files were successfully copied"

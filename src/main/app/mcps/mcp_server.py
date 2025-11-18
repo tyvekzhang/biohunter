@@ -7,24 +7,27 @@ from src.main.app.tools.cart_tumor_target_mining import cart_target_mining
 
 mcp = FastMCP("Biohunter")
 
+
 @mcp.tool(
     name="scRNA_file_context_aware",
-    description="【获取用户输入数据】把用户上传的数据下载到服务器, 供后续分析使用, 第一步一定要执行。",
+    description="【必须首先执行】下载和管理用户上传的数据文件，获取文件路径供后续分析使用。",
 )
-def scRNA_file_context_aware(
+async def scRNA_file_context_aware(
     target: str = "Discover and manage files",
     mode: str = "auto",
 ):
-    return file_context_aware()
+    return await file_context_aware()
 
 
 # ========== 肿瘤CAR-T靶点挖掘 ==========
 @mcp.tool(
     name="scRNA_cart_target_mining",
-    description=f"""【肿瘤细胞CAR-T靶点挖掘】使用严谨的过滤策略，挖掘CAR-T细胞靶点基因，确保靶点基因的安全性和有效性。
+    description=f"""【肿瘤细胞CAR-T靶点挖掘】。
+    使用说明：
+    1. 必须先执行 scRNA_file_context_aware 工具获取文件路径
     参数：
-    positive_path: 阳性参考文件路径, 非必填项
-    negative_path: 阴性参考文件路径, 非必填项
+    positive_path: 阳性参考文件路径, 存在的话和scRNA_file_context_aware工具获取的文件匹配路径,
+    negative_path: 阴性参考文件路径, 存在的话和scRNA_file_context_aware工具获取的文件匹配路径,
     target_celltype: 用户输入的CAR-T靶点细胞类型
     surface_path: 细胞表面基因参考文件路径,文件路径为'{os.path.dirname(os.path.abspath(__file__))}/database/CellPhoneDB_CSPA_Surfaceome_HPA.csv'
     Tcell_path: 健康T细胞基因参考文件路径，文件路径为'{os.path.dirname(os.path.abspath(__file__))}/database/Tcell_genes.csv'
@@ -47,10 +50,10 @@ def scRNA_cart_target_mining(
     Tcell_path: str,
     healthy_path: str,
     drug_path: str,
+    query: str,
+    positive_path: str = None,
+    negative_path: str = None,
     target_celltype: Optional[str] = None,
-    positive_path: Optional[str] = None,
-    negative_path: Optional[str] = None,
-    query: Optional[str] = None,
     cell_type_key: str = "cell_type",
     malign_label: str = "cnv_status",
     filter_threshold: float = 2,

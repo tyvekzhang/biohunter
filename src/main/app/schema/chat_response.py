@@ -31,7 +31,7 @@ class Fence(BaseModel):
 
 
 class ChatAgentTaskFence(Fence):
-    tag: Literal["bdd-chat-agent-task"] = "bdd-chat-agent-task"
+    tag: Literal["chat-agent-task"] = "chat-agent-task"
 
 
 class HandlerParam(BaseModel):
@@ -110,5 +110,5 @@ class ChatFileFenceContent(FenceContent):
 
 
 class ChatFlieListFence(Fence):
-    tag: Literal["bdd-chat-filelist-view"] = "bdd-chat-filelist-view"
+    tag: Literal["chat-filelist-view"] = "chat-filelist-view"
     content: list[ChatFileFenceContent]
