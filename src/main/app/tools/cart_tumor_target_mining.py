@@ -115,6 +115,11 @@ def cart_target_mining(
             )
             filename = "literature_keywords"
             adata = query
+            result["OutputAdata_info"] = str(adata)
+            result["Result"] = (
+                f"CAR-T靶点挖掘已完成，目标细胞{target_celltype}最终靶点基因数：{len(malign_genes)}，靶点基因：{list(malign_genes)}。"
+            )
+            result["OutputFiles"]["datas"] = str(malign_genes)
         else:
             # 检查是否有细胞类型注释
             adata_base_malign = sc.read_h5ad(positive_path)
@@ -257,78 +262,75 @@ def cart_target_mining(
                 f"已提取{target_celltype}的恶性细胞高表达基因，候选基因数：{len(malign_genes)}"
             )
 
-        # filter2: genelist intersects with surface----------------------------------------------------------------
-        # inplaced with CellPhoneDB_CSPA_Surfaceome_HPA.csv
-        if surface_filter:
-            surface_genes = pd.read_csv(surface_path, sep=",")
-            surface_genes = np.array(surface_genes["surfaceome_genes"]).astype(str)
-            df_filter2 = np.array(np.intersect1d(malign_genes, surface_genes)).astype(
-                str
+            # filter2: genelist intersects with surface----------------------------------------------------------------
+            # inplaced with CellPhoneDB_CSPA_Surfaceome_HPA.csv
+            if surface_filter:
+                surface_genes = pd.read_csv(surface_path, sep=",")
+                surface_genes = np.array(surface_genes["surfaceome_genes"]).astype(str)
+                df_filter2 = np.array(np.intersect1d(malign_genes, surface_genes)).astype(
+                    str
+                )
+                print(f"已完成细胞表面基因过滤，剩余候选基因数：{len(df_filter2)}")
+            else:
+                df_filter2 = malign_genes
+
+            # filter3: genelist excludes Tcell----------------------------------------------------------------
+            # inplaced with healthy_T_genes.csv
+            if Tcell_filter:
+                df_filter3 = np.array(
+                    df_filter2[np.isin(df_filter2, t_genes, invert=True)]
+                ).astype(str)
+                print(f"已完成T细胞脱靶基因过滤，剩余候选基因数：{len(df_filter3)}")
+            else:
+                df_filter3 = df_filter2
+
+            # filter4: genelist less than 2% in healthyOrgan cells -----------------------------------------
+            if healthy_filter:
+                df_healthy = pd.read_csv(healthy_path, index_col="Unnamed: 0", sep=",")
+
+                df_filter3_filtered = [
+                    gene for gene in df_filter3 if gene in df_healthy.index
+                ]
+                df_safe_genes = list(set(df_filter3) - set(df_filter3_filtered))
+
+                df4 = df_healthy.loc[df_filter3_filtered].copy()
+
+                df4["thresholds_passed"] = df4.apply(
+                    lambda row: sum([(x < filter_threshold) for x in row]), axis=1
+                )
+
+                df_filter4 = df4[df4["thresholds_passed"] == 2].index
+                set_merge4 = set(df_filter4) | set(df_safe_genes)
+                df_filter4 = np.array(list(set_merge4)).astype(str)
+                print(f"已完成器官脱靶基因过滤，剩余候选基因数：{len(df_filter4)}")
+
+            else:
+                df_filter4 = df_filter3
+
+            # filter5: genes that intersect with druggable gene--------------------------------
+            # inplaced with druggable_proteome_genes.csv
+            if drug_filter:
+                druggable = pd.read_csv(drug_path)
+                druggene = np.array(druggable["druggable_proteome_genes"]).astype(str)
+                final_candidates = np.array(np.intersect1d(df_filter4, druggene)).astype(
+                    str
+                )
+                print(f"已完成药物靶点基因过滤，最终的靶点基因数：{len(final_candidates)}")
+            else:
+                final_candidates = df_filter4
+
+            # save filtered genes as csv-------------------------------------------------------------------
+            cart_result = pd.DataFrame(final_candidates, columns=["gene"])
+            cart_final_candidates_path = os.path.join(
+                output_dir, f"cart_final_candidates_{filename}.csv"
             )
-            print(f"已完成细胞表面基因过滤，剩余候选基因数：{len(df_filter2)}")
-        else:
-            df_filter2 = malign_genes
+            cart_result.to_csv(cart_final_candidates_path)
 
-        # filter3: genelist excludes Tcell----------------------------------------------------------------
-        # inplaced with healthy_T_genes.csv
-        if Tcell_filter:
-            df_filter3 = np.array(
-                df_filter2[np.isin(df_filter2, t_genes, invert=True)]
-            ).astype(str)
-            print(f"已完成T细胞脱靶基因过滤，剩余候选基因数：{len(df_filter3)}")
-        else:
-            df_filter3 = df_filter2
-
-        # filter4: genelist less than 2% in healthyOrgan cells -----------------------------------------
-        if healthy_filter:
-            df_healthy = pd.read_csv(healthy_path, index_col="Unnamed: 0", sep=",")
-
-            df_filter3_filtered = [
-                gene for gene in df_filter3 if gene in df_healthy.index
-            ]
-            df_safe_genes = list(set(df_filter3) - set(df_filter3_filtered))
-
-            df4 = df_healthy.loc[df_filter3_filtered].copy()
-
-            df4["thresholds_passed"] = df4.apply(
-                lambda row: sum([(x < filter_threshold) for x in row]), axis=1
+            result["OutputAdata_info"] = str(adata)
+            result["Result"] = (
+                f"CAR-T靶点挖掘已完成，目标细胞{target_celltype}最终靶点基因数：{len(final_candidates)}，靶点基因：{list(final_candidates)}。"
             )
-
-            df_filter4 = df4[df4["thresholds_passed"] == 2].index
-            set_merge4 = set(df_filter4) | set(df_safe_genes)
-            df_filter4 = np.array(list(set_merge4)).astype(str)
-            print(f"已完成器官脱靶基因过滤，剩余候选基因数：{len(df_filter4)}")
-
-        else:
-            df_filter4 = df_filter3
-
-        # filter5: genes that intersect with druggable gene--------------------------------
-        # inplaced with druggable_proteome_genes.csv
-        if drug_filter:
-            druggable = pd.read_csv(drug_path)
-            druggene = np.array(druggable["druggable_proteome_genes"]).astype(str)
-            final_candidates = np.array(np.intersect1d(df_filter4, druggene)).astype(
-                str
-            )
-            print(f"已完成药物靶点基因过滤，最终的靶点基因数：{len(final_candidates)}")
-        else:
-            final_candidates = df_filter4
-
-        # save filtered genes as csv-------------------------------------------------------------------
-        cart_result = pd.DataFrame(final_candidates, columns=["gene"])
-        cart_final_candidates_path = os.path.join(
-            output_dir, f"cart_final_candidates_{filename}.csv"
-        )
-        cart_result.to_csv(cart_final_candidates_path)
-
-        print(f"已保存{target_celltype}的靶点基因到{cart_final_candidates_path}")
-
-        result["OutputAdata_info"] = str(adata)
-        result["Result"] = (
-            f"CAR-T靶点挖掘已完成，目标细胞{target_celltype}最终靶点基因数：{len(final_candidates)}，靶点基因：{list(final_candidates)}。"
-        )
-        result["OutputFiles"]["datas"] = cart_final_candidates_path
-        result["OutputFiles"]["figures"] = figure_path
+            result["OutputFiles"]["datas"] = cart_final_candidates_path
     except Exception as e:
         result["Status"] = "Error"
         result["Error"] = f"CAR-T靶点挖掘失败: {traceback.format_exc()}"

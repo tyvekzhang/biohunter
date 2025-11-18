@@ -35,9 +35,13 @@ class TargetMiningConfig:
         self.model = llm_config.model
 
         # Processing Configuration
-        self.batch_size = 50
+        self.batch_size = 10
         self.max_retries = 3
         self.retry_delay = 2
+        
+        # New: Top articles limit based on impact factor
+        self.top_articles_limit = 100
+        self.jcr_file_path = os.path.join(os.path.dirname(__file__), "JCR.xlsx")
 
         # Output Configuration
         self.output_format = "csv"
@@ -83,6 +87,65 @@ Where:
 Please output only the table in markdown format without additional commentary."""
 
 
+class JCRImpactFactorLoader:
+    """Load and manage journal impact factor data from JCR.xlsx"""
+    
+    def __init__(self, jcr_file_path: str):
+        self.jcr_file_path = jcr_file_path
+        self.journal_if_map = {}
+        self._load_jcr_data()
+    
+    def _load_jcr_data(self):
+        """Load JCR data and create journal-IF mapping"""
+        logger.info(f"Loading JCR data from: {self.jcr_file_path}")
+        
+        if not os.path.exists(self.jcr_file_path):
+            logger.warning(f"JCR file not found: {self.jcr_file_path}")
+            return
+        
+        try:
+            # Read JCR Excel file
+            df = pd.read_excel(self.jcr_file_path)
+            
+            # Check for required columns
+            required_cols = ["名字", "缩写", "2023最新IF"]
+            for col in required_cols:
+                if col not in df.columns:
+                    logger.warning(f"Required column '{col}' not found in JCR file")
+                    return
+            
+            # Create mapping for both full name and abbreviation
+            for _, row in df.iterrows():
+                journal_name = str(row["名字"]).strip().upper()
+                journal_abbrev = str(row["缩写"]).strip().upper()
+                impact_factor = float(row["2023最新IF"])
+                
+                self.journal_if_map[journal_name] = impact_factor
+                self.journal_if_map[journal_abbrev] = impact_factor
+            
+            logger.info(f"Loaded {len(self.journal_if_map)} journal impact factors")
+            
+        except Exception as e:
+            logger.error(f"Error loading JCR data: {e}")
+    
+    def get_impact_factor(self, journal_name: str) -> float:
+        """Get impact factor for a journal"""
+        if not journal_name:
+            return 0.0
+        
+        # Try exact match first
+        journal_upper = journal_name.strip().upper()
+        if journal_upper in self.journal_if_map:
+            return self.journal_if_map[journal_upper]
+        
+        # Try partial match
+        for key, value in self.journal_if_map.items():
+            if journal_upper in key or key in journal_upper:
+                return value
+        
+        return 0.0
+
+
 class PubMedQueryExecutor:
     """Handles PubMed query execution and MEDLINE file retrieval"""
 
@@ -101,7 +164,7 @@ class PubMedQueryExecutor:
         Returns:
             Path to the generated MEDLINE file
         """
-        logger.info(f"Executing PubMed query: {query}")
+        
         os.makedirs(output_dir, exist_ok=True)
         medline_file = os.path.join(output_dir, "query_results.medline")
 
@@ -173,7 +236,7 @@ class MedlineParser:
             file_path: Path to MEDLINE file
 
         Returns:
-            DataFrame with PMID, Title, and Abstract columns
+            DataFrame with PMID, Title, Abstract, and Journal columns
         """
         logger.info(f"Parsing MEDLINE file: {file_path}")
         records = []
@@ -189,6 +252,14 @@ class MedlineParser:
                     pmid = record.get("PMID", "")
                     title = record.get("TI", "")
                     abstract = record.get("AB", "")
+                    
+                    # Extract journal information
+                    journal = record.get("TA", "")  # Journal Title Abbreviation
+                    if not journal:
+                        journal = record.get("JT", "")  # Journal Title
+                    
+                    # Extract publication date
+                    pub_date = record.get("DP", "")  # Date of Publication
 
                     # Skip records without title or abstract
                     if not title and not abstract:
@@ -196,7 +267,13 @@ class MedlineParser:
                         logger.info(f"Skipping record {pmid}: no title or abstract")
                         continue
 
-                    records.append({"PMID": pmid, "Title": title, "Abstract": abstract})
+                    records.append({
+                        "PMID": pmid, 
+                        "Title": title, 
+                        "Abstract": abstract,
+                        "Journal": journal,
+                        "Publication_Date": pub_date
+                    })
 
             df = pd.DataFrame(records)
             logger.info(
@@ -211,6 +288,48 @@ class MedlineParser:
         except Exception as e:
             logger.exception(f"Error parsing MEDLINE file: {e}")
             raise
+
+
+class ImpactFactorFilter:
+    """Filter and rank articles based on journal impact factors"""
+    
+    def __init__(self, jcr_loader: JCRImpactFactorLoader):
+        self.jcr_loader = jcr_loader
+    
+    def rank_articles_by_impact_factor(self, df: pd.DataFrame, top_n: int = 50) -> pd.DataFrame:
+        """
+        Rank articles by journal impact factor and return top N
+        
+        Args:
+            df: DataFrame with articles
+            top_n: Number of top articles to return
+        
+        Returns:
+            Filtered and sorted DataFrame
+        """
+        logger.info(f"Ranking {len(df)} articles by impact factor")
+        
+        # Add impact factor column
+        df["Impact_Factor"] = df["Journal"].apply(self.jcr_loader.get_impact_factor)
+        
+        # Sort by impact factor (descending)
+        df_sorted = df.sort_values("Impact_Factor", ascending=False)
+        
+        # Log statistics
+        logger.info(f"Impact factor statistics:")
+        logger.info(f"  - Articles with IF > 0: {len(df_sorted[df_sorted['Impact_Factor'] > 0])}")
+        logger.info(f"  - Max IF: {df_sorted['Impact_Factor'].max():.2f}")
+        logger.info(f"  - Mean IF: {df_sorted['Impact_Factor'].mean():.2f}")
+        
+        # Get top N articles
+        df_top = df_sorted.head(top_n)
+        logger.info(f"Selected top {len(df_top)} articles for processing")
+        
+        # Log selected articles
+        for idx, row in df_top.head(10).iterrows():
+            logger.info(f"  PMID: {row['PMID']}, Journal: {row['Journal']}, IF: {row['Impact_Factor']:.2f}")
+        
+        return df_top
 
 
 class LLMTargetExtractor:
@@ -302,6 +421,8 @@ class LLMTargetExtractor:
                 result = self._extract_targets_from_record(row)
                 if result is not None and not result.empty:
                     result["Source_PMID"] = int(row["PMID"]) if row["PMID"] else None
+                    result["Journal"] = row.get("Journal", "")
+                    result["Impact_Factor"] = row.get("Impact_Factor", 0.0)
                     all_results.append(result)
                     successful_records += 1
                 else:
@@ -329,12 +450,14 @@ class LLMTargetExtractor:
         pmid = row.get("PMID", "unknown")
         title = str(row.get("Title", ""))
         abstract = str(row.get("Abstract", ""))
+        journal = row.get("Journal", "")
+        impact_factor = row.get("Impact_Factor", 0.0)
 
         if not title and not abstract:
             logger.info(f"Skipping record {pmid}: no title or abstract")
             return None
 
-        logger.info(f"Extracting targets from PMID: {pmid}")
+        logger.info(f"Extracting targets from PMID: {pmid} (Journal: {journal}, IF: {impact_factor:.2f})")
 
         # Construct prompt
         messages = [
@@ -483,6 +606,11 @@ class TargetMiningTool:
         self.query_executor = PubMedQueryExecutor(self.config)
         self.medline_parser = MedlineParser(self.config)
         self.llm_extractor = LLMTargetExtractor(self.config)
+        
+        # Initialize JCR loader and impact factor filter
+        self.jcr_loader = JCRImpactFactorLoader(self.config.jcr_file_path)
+        self.if_filter = ImpactFactorFilter(self.jcr_loader)
+        
         logger.info("TargetMiningTool initialized successfully")
 
     def mine_targets(
@@ -526,22 +654,39 @@ class TargetMiningTool:
                 logger.warning("No records found in MEDLINE file")
                 return [], pd.DataFrame()
 
-            # Save parsed data
-            parsed_file = os.path.join(output_dir, "parsed_records.csv")
-            df.to_csv(parsed_file, index=False, encoding="utf-8")
-            logger.info(f"Parsed records saved to: {parsed_file}")
+            # Save all parsed data
+            all_parsed_file = os.path.join(output_dir, "all_parsed_records.csv")
+            df.to_csv(all_parsed_file, index=False, encoding="utf-8")
+            logger.info(f"All parsed records saved to: {all_parsed_file}")
 
-            # Step 3: Extract targets using LLM
-            logger.info("Extracting targets using LLM...")
+            # Step 3: Filter by impact factor and select top articles
+            logger.info(f"Filtering top {self.config.top_articles_limit} articles by impact factor...")
+            df_filtered = self.if_filter.rank_articles_by_impact_factor(
+                df, top_n=self.config.top_articles_limit
+            )
+            
+            # Save filtered articles
+            filtered_file = os.path.join(output_dir, "top_articles_by_if.csv")
+            df_filtered.to_csv(filtered_file, index=False, encoding="utf-8")
+            logger.info(f"Top articles saved to: {filtered_file}")
+            
+            # Log statistics
+            logger.info(f"Article selection statistics:")
+            logger.info(f"  - Total articles parsed: {len(df)}")
+            logger.info(f"  - Articles selected for processing: {len(df_filtered)}")
+            logger.info(f"  - Average IF of selected articles: {df_filtered['Impact_Factor'].mean():.2f}")
+
+            # Step 4: Extract targets using LLM (only from top articles)
+            logger.info(f"Extracting targets from {len(df_filtered)} top articles...")
             results_df = self.llm_extractor.extract_targets_from_dataframe(
-                df, output_dir
+                df_filtered, output_dir
             )
 
             if results_df.empty:
                 logger.warning("No targets extracted from literature")
                 return [], pd.DataFrame()
 
-            # Step 4: Generate final results
+            # Step 5: Generate final results
             logger.info("Generating final results...")
             gene_list, final_df = self._process_final_results(results_df, output_dir)
 
@@ -550,6 +695,9 @@ class TargetMiningTool:
             logger.info(f"Execution time: {execution_time:.2f} seconds")
             logger.info(f"Total unique targets found: {len(gene_list)}")
             logger.info(f"Results saved to: {output_dir}")
+            
+            # Print summary statistics
+            self._print_summary_statistics(df, df_filtered, final_df)
 
             return gene_list, final_df
 
@@ -627,3 +775,25 @@ class TargetMiningTool:
         logger.info(f"Final results saved to: {final_results_file}")
 
         return gene_list, final_df
+    
+    def _print_summary_statistics(self, df_all: pd.DataFrame, df_filtered: pd.DataFrame, df_final: pd.DataFrame):
+        """Print summary statistics of the mining process"""
+        logger.info("\n" + "="*50)
+        logger.info("SUMMARY STATISTICS")
+        logger.info("="*50)
+        logger.info(f"Total articles retrieved: {len(df_all)}")
+        logger.info(f"Articles selected by IF: {len(df_filtered)} (top {self.config.top_articles_limit})")
+        
+        if "Impact_Factor" in df_filtered.columns:
+            logger.info(f"Impact Factor range of selected articles: {df_filtered['Impact_Factor'].min():.2f} - {df_filtered['Impact_Factor'].max():.2f}")
+        
+        if not df_final.empty:
+            logger.info(f"Total targets extracted: {len(df_final)}")
+            
+            if "Journal" in df_final.columns:
+                top_journals = df_final["Journal"].value_counts().head(5)
+                logger.info("Top 5 journals contributing targets:")
+                for journal, count in top_journals.items():
+                    logger.info(f"  - {journal}: {count} targets")
+        
+        logger.info("="*50 + "\n")
