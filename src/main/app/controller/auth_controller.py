@@ -14,7 +14,8 @@
 """Auth REST Controller"""
 
 from datetime import timedelta
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
+from fastapi.security import OAuth2PasswordRequestForm
 from fastlib import security
 
 from fastlib.schema import UserCredential
@@ -27,24 +28,27 @@ from src.main.app.service.user_service import UserService
 auth_router = APIRouter()
 user_service: UserService = UserServiceImpl(mapper=userMapper)
 
+
 async def generate_tokens(user_id: int) -> UserCredential:
     """
     Generate access and refresh tokens for a user.
-    
+
     Creates a long-lived token pair (access and refresh) with identical expiration.
     Both tokens are generated using the same user ID and expiration configuration.
-    
+
     Args:
-    
+
         user_id: User ID to generate tokens for
-        
+
     Returns:
-    
+
         UserCredential object containing access_token and refresh_token
     """
     token_expires = timedelta(days=3650)
-    
-    access_token = security.create_token(subject=user_id, token_type="Bearer",expires_delta=token_expires)
+
+    access_token = security.create_token(
+        subject=user_id, token_type="Bearer", expires_delta=token_expires
+    )
 
     # generate refresh token
     refresh_token = security.create_token(
@@ -58,24 +62,14 @@ async def generate_tokens(user_id: int) -> UserCredential:
         refresh_token=refresh_token,
     )
 
-@auth_router.post("/tokens")
-async def create_token(fingerprint: str) -> UserCredential:
-    """Create or retrieve authentication tokens for a user.
-    
-    If the user doesn't exist, creates a new user with the provided fingerprint.
-    
-    Args:
-    
-        fingerprint: Unique identifier used to lookup or create user
-        
-    Returns:
-    
-        UserCredential: Authentication tokens for the user
-    """
+
+@auth_router.post("/auth:signIn")
+async def signIn(
+    req: OAuth2PasswordRequestForm = Depends(),
+) -> UserCredential:
+    fingerprint = req.username
     user = await userMapper.select_by_username(username=fingerprint)
     if user is None:
         user = UserModel(username=fingerprint)
         await userMapper.insert(data=user)
     return await generate_tokens(user.id)
-    
-    

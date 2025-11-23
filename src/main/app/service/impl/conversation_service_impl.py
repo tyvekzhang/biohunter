@@ -102,9 +102,21 @@ class ConversationServiceImpl(BaseServiceImpl[ConversationMapper, ConversationMo
     
 
     async def create_conversation(self, req: CreateConversationRequest) -> ConversationModel:
+        user_id = get_current_user()
+        filters = {
+            FilterOperators.EQ: {},
+        }
+        filters[FilterOperators.EQ]["user_id"] = user_id
+        filters[FilterOperators.EQ]["is_default"] = StatusEnum.YES.code
+        exist_data, _ = await self.mapper.select_by_ordered_page(
+            **filters,
+        )
+        if exist_data:
+            return exist_data[0]
+        
         conversation: ConversationModel = ConversationModel(**req.conversation.model_dump())
         conversation.is_default = StatusEnum.YES.code
-        conversation.user_id = get_current_user()
+        conversation.user_id = user_id
         return await self.save(data=conversation)
 
     async def update_conversation(self, req: UpdateConversationRequest) -> ConversationModel:

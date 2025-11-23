@@ -6,7 +6,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Optional
 from fastapi import UploadFile
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_serializer
 
 from fastlib.request import ListRequest
 
@@ -23,6 +23,10 @@ class Conversation(BaseModel):
     title: str
     created_at: datetime
     update_at: datetime
+
+    @field_serializer("id")
+    def serialize_id(self, value: int) -> str:
+        return str(value)
 
 
 class ConversationDetail(BaseModel):
@@ -52,15 +56,21 @@ class UpdateConversationRequest(BaseModel):
 
 
 class BatchGetConversationsResponse(BaseModel):
-    conversations: list[ConversationDetail] = Field(default_factory=list, alias="conversations")
+    conversations: list[ConversationDetail] = Field(
+        default_factory=list, alias="conversations"
+    )
 
 
 class BatchCreateConversationsRequest(BaseModel):
-    conversations: list[CreateConversation] = Field(default_factory=list, alias="conversations")
+    conversations: list[CreateConversation] = Field(
+        default_factory=list, alias="conversations"
+    )
 
 
 class BatchCreateConversationsResponse(BaseModel):
-    conversations: list[Conversation] = Field(default_factory=list, alias="conversations")
+    conversations: list[Conversation] = Field(
+        default_factory=list, alias="conversations"
+    )
 
 
 class BatchUpdateConversation(BaseModel):
@@ -75,11 +85,15 @@ class BatchUpdateConversationsRequest(BaseModel):
 
 
 class BatchPatchConversationsRequest(BaseModel):
-    conversations: list[UpdateConversation] = Field(default_factory=list, alias="conversations")
+    conversations: list[UpdateConversation] = Field(
+        default_factory=list, alias="conversations"
+    )
 
 
 class BatchUpdateConversationsResponse(BaseModel):
-     conversations: list[Conversation] = Field(default_factory=list, alias="conversations")
+    conversations: list[Conversation] = Field(
+        default_factory=list, alias="conversations"
+    )
 
 
 class BatchDeleteConversationsRequest(BaseModel):
@@ -103,4 +117,6 @@ class ImportConversation(CreateConversation):
 
 
 class ImportConversationsResponse(BaseModel):
-    conversations: list[ImportConversation] = Field(default_factory=list, alias="conversations")
+    conversations: list[ImportConversation] = Field(
+        default_factory=list, alias="conversations"
+    )
