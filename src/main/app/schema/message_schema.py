@@ -29,7 +29,7 @@ class Message(BaseModel):
     content_type: Optional[str] = 'text'
     token_count: Optional[int] = '0'
     meta_data: Optional[str] = None
-    created_at: Optional[datetime] = CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+    
 
 
 class MessageDetail(BaseModel):
@@ -40,7 +40,7 @@ class MessageDetail(BaseModel):
     content_type: Optional[str] = 'text'
     token_count: Optional[int] = '0'
     meta_data: Optional[str] = None
-    created_at: Optional[datetime] = CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+    
 
 
 class CreateMessage(BaseModel):

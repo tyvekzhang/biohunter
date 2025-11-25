@@ -80,6 +80,6 @@ class MessageBase(SQLModel):
 class MessageModel(MessageBase, table=True):
     __tablename__ = "messages"
     __table_args__ = (
-        Index("idx_conv_created", "conversation_id, created_at"),
+        Index("idx_conv_created", "conversation_id", "created_at"),
         {"comment": "对话消息表"},
     )

@@ -13,7 +13,7 @@ from src.main.app.model.message_model import MessageModel
 
 class MessageMapper(SqlModelMapper[MessageModel]):
 
-    async def select_by_conversation_id, created_at(
+    async def select_by_conversation_id(
         self, *, conversation_id, created_at: str, db_session: Optional[AsyncSession] = None
     ) -> Optional[MessageModel]:
         """
@@ -25,7 +25,7 @@ class MessageMapper(SqlModelMapper[MessageModel]):
         )
         return result.one_or_none()
 
-    async def select_by_conversation_id, created_at_list(
+    async def select_by_conversation_id(
         self, *, conversation_id, created_at_list: list[str], db_session: Optional[AsyncSession] = None
     ) -> list[MessageModel]:
         """
@@ -33,7 +33,7 @@ class MessageMapper(SqlModelMapper[MessageModel]):
         """
         db_session = db_session or self.db.session
         result = await db_session.exec(
-            select(self.model).where(self.model.conversation_id, created_at.in_(conversation_id, created_at_list))
+            select(self.model).where(self.model.conversation_id.in_(conversation_id))
         )
         return result.all()
 
