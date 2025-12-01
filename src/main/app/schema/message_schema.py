@@ -10,6 +10,24 @@ from pydantic import BaseModel, Field
 
 from fastlib.request import ListRequest
 
+from src.main.app.model.message_model import MessageModel
+
+
+class ThinkingContent(MessageModel):
+    role: str = "assistant"
+    content_type: str = "thought"
+
+
+class AgentResponse(MessageModel):
+    role: str = "assistant"
+    toll_call_list: list[TollCallResponse]
+
+
+class TollCallResponse(BaseModel):
+    name: str
+    input: Optional[str] = None
+    output: Optional[str] = None
+
 
 class ListMessagesRequest(ListRequest):
     id: Optional[int] = None
@@ -26,10 +44,9 @@ class Message(BaseModel):
     conversation_id: Optional[int] = None
     role: Optional[str] = None
     content: Optional[str] = None
-    content_type: Optional[str] = 'text'
-    token_count: Optional[int] = '0'
+    content_type: Optional[str] = "text"
+    token_count: Optional[int] = "0"
     meta_data: Optional[str] = None
-    
 
 
 class MessageDetail(BaseModel):
@@ -37,18 +54,17 @@ class MessageDetail(BaseModel):
     conversation_id: Optional[int] = None
     role: Optional[str] = None
     content: Optional[str] = None
-    content_type: Optional[str] = 'text'
-    token_count: Optional[int] = '0'
+    content_type: Optional[str] = "text"
+    token_count: Optional[int] = "0"
     meta_data: Optional[str] = None
-    
 
 
 class CreateMessage(BaseModel):
     conversation_id: Optional[int] = None
     role: Optional[str] = None
     content: Optional[str] = None
-    content_type: Optional[str] = 'text'
-    token_count: Optional[int] = '0'
+    content_type: Optional[str] = "text"
+    token_count: Optional[int] = "0"
     meta_data: Optional[str] = None
 
 
@@ -61,8 +77,8 @@ class UpdateMessage(BaseModel):
     conversation_id: Optional[int] = None
     role: Optional[str] = None
     content: Optional[str] = None
-    content_type: Optional[str] = 'text'
-    token_count: Optional[int] = '0'
+    content_type: Optional[str] = "text"
+    token_count: Optional[int] = "0"
     meta_data: Optional[str] = None
 
 
@@ -86,8 +102,8 @@ class BatchUpdateMessage(BaseModel):
     conversation_id: Optional[int] = None
     role: Optional[str] = None
     content: Optional[str] = None
-    content_type: Optional[str] = 'text'
-    token_count: Optional[int] = '0'
+    content_type: Optional[str] = "text"
+    token_count: Optional[int] = "0"
     meta_data: Optional[str] = None
 
 
@@ -101,7 +117,7 @@ class BatchPatchMessagesRequest(BaseModel):
 
 
 class BatchUpdateMessagesResponse(BaseModel):
-     messages: list[Message] = Field(default_factory=list, alias="messages")
+    messages: list[Message] = Field(default_factory=list, alias="messages")
 
 
 class BatchDeleteMessagesRequest(BaseModel):

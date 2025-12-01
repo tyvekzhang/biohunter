@@ -5,7 +5,7 @@ from typing import Annotated, Literal
 from fastlib.stream.schema import BaseMessage, BaseStreamMessage
 from pydantic import BaseModel, Field
 
-
+    
 class StreamMessage(BaseStreamMessage):
     event: Literal["success", "confirm", "done", "error"]
 

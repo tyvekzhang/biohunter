@@ -32,6 +32,10 @@ from src.main.app.service.message_service import MessageService
 message_router = APIRouter()
 message_service: MessageService = MessageServiceImpl(mapper=messageMapper)
 
+@message_router.get("/conversations/{id}")
+async def get_conversation_message():
+    pass
+
 
 @message_router.get("/messages/{id}")
 async def get_message(id: int) -> MessageDetail:
