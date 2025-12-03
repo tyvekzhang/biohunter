@@ -13,13 +13,24 @@ from fastlib.request import ListRequest
 from src.main.app.model.message_model import MessageModel
 
 
-class ThinkingContent(MessageModel):
+class Message(BaseModel):
+    id: int
+    conversation_id: Optional[int] = None
+    role: Optional[str] = None
+    content: Optional[str] = None
+    content_type: Optional[str] = "text"
+    token_count: Optional[int] = "0"
+    meta_data: Optional[str] = None
+
+
+class ThinkingContent(Message):
     role: str = "assistant"
     content_type: str = "thought"
 
 
-class AgentResponse(MessageModel):
+class AgentResponse(Message):
     role: str = "assistant"
+    name: str
     toll_call_list: list[TollCallResponse]
 
 
@@ -37,16 +48,6 @@ class ListMessagesRequest(ListRequest):
     token_count: Optional[int] = None
     meta_data: Optional[str] = None
     created_at: Optional[datetime] = None
-
-
-class Message(BaseModel):
-    id: int
-    conversation_id: Optional[int] = None
-    role: Optional[str] = None
-    content: Optional[str] = None
-    content_type: Optional[str] = "text"
-    token_count: Optional[int] = "0"
-    meta_data: Optional[str] = None
 
 
 class MessageDetail(BaseModel):
