@@ -48,6 +48,7 @@ class ListMessagesRequest(ListRequest):
     token_count: Optional[int] = None
     meta_data: Optional[str] = None
     created_at: Optional[datetime] = None
+    conversation_id: Optional[int] = None
 
 
 class MessageDetail(BaseModel):

@@ -78,8 +78,8 @@ class MessageServiceImpl(BaseServiceImpl[MessageMapper, MessageModel], MessageSe
             FilterOperators.BETWEEN: {},
             FilterOperators.LIKE: {},
         }
-        if req.id is not None and req.id != "":
-            filters[FilterOperators.EQ]["id"] = req.id
+        if req.conversation_id is not None and req.conversation_id != "":
+            filters[FilterOperators.EQ]["conversation_id"] = req.conversation_id
         if req.role is not None and req.role != "":
             filters[FilterOperators.EQ]["role"] = req.role
         if req.content is not None and req.content != "":
