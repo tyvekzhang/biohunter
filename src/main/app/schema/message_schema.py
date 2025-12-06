@@ -12,6 +12,9 @@ from fastlib.request import ListRequest
 
 from src.main.app.model.message_model import MessageModel
 
+class RoleInfo:
+    USER = "user"
+    ASSISTANT = "assistant"
 
 class Message(BaseModel):
     id: int

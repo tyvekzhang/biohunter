@@ -16,8 +16,30 @@ from fastlib.contextvars import get_current_user
 from src.main.app.agent.assistant import Assistant, MessageChunkEvent, ThoughtChunkEvent
 from src.main.app.agent.assistant_team import ConclusionEvent
 from src.main.app.agent.context import set_current_message
-from src.main.app.schema.chat_response import ChatAgentTaskFence, MCPToolCallFenceContent, MCPToolFailedFenceContent, MCPToolHandlerParam, MCPToolResultFenceContent
-from src.main.app.schema.chat_schema import ChatRequest, ChatMessage, ConfirmMessage, DoneMessage, ErrorMessage, SuccessMessage, SuccessMessageData, SuccessThinkingData
+from src.main.app.model.message_model import MessageModel
+from src.main.app.schema.chat_response import (
+    ChatAgentTaskFence,
+    MCPToolCallFenceContent,
+    MCPToolFailedFenceContent,
+    MCPToolHandlerParam,
+    MCPToolResultFenceContent,
+)
+from src.main.app.schema.chat_schema import (
+    ChatRequest,
+    ChatMessage,
+    ConfirmMessage,
+    DoneMessage,
+    ErrorMessage,
+    SuccessMessage,
+    SuccessMessageData,
+    SuccessThinkingData,
+)
+from src.main.app.schema.message_schema import RoleInfo
+from src.main.app.service.impl.message_service_impl import MessageServiceImpl
+from src.main.app.service.message_service import MessageService
+from src.main.app.mapper.message_mapper import messageMapper
+
+message_service: MessageService = MessageServiceImpl(mapper=messageMapper)
 
 chat_router = APIRouter()
 
@@ -95,6 +117,11 @@ async def create_response(cr: ChatRequest):
         task_id=str(uuid.uuid4()),
         conversation_id=cr.conversation_id,
     )
+
+    message_data = MessageModel(
+        conversation_id=cr.conversation_id, role=RoleInfo.USER, content=cr.content
+    )
+    await message_service.save(message_data)
 
     source = new_chat(message, cr.content)
 

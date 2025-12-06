@@ -23,8 +23,6 @@ from autogen_core.tools import Workbench
 # Import prompts from separate file
 from . import prompts
 
-# Agent Names
-PLANNING_AGENT_NAME = "planning_agent"
 TASK_AGENT_NAME = "task_agent"
 SUMMARY_AGENT_NAME = "summary_agent"
 
@@ -32,6 +30,11 @@ SUMMARY_AGENT_NAME = "summary_agent"
 class ConclusionEvent(BaseAgentEvent):
     """
     Event indicating the final conclusion of a task execution.
+
+    Emitted at the end of task processing to indicate the overall outcome.
+
+    Attributes:
+        conclusion: One of "COMPLETED", "FAILED", or "NEED_USER_INPUT"
     """
 
     type: Literal["ConclusionEvent"] = "ConclusionEvent"
@@ -46,10 +49,24 @@ class AssistantTeam(Swarm):
     """
     A coordinated team of AI assistants for task execution and summarization.
 
-    Comprises three specialized agents that work together:
-    - Planning Agent: Breaks down the task into executable steps.
-    - Task Agent: Executes analysis and computation tasks using tools.
-    - Summary Agent: Provides final summaries and conclusions.
+    Comprises two specialized agents that work together:
+    - Task Agent: Executes tasks using available tools
+    - Summary Agent: Provides final summaries and conclusions
+
+    The team follows a structured workflow where the Task Agent handles
+    primary execution and the Summary Agent provides the final overview.
+
+    Example:
+        ```python
+        team = AssistantTeam(
+            model_client=chat_client,
+            workbench=workbench
+        )
+
+        async for message in team.run_stream(task="Analyze sales data"):
+            if isinstance(message, ConclusionEvent):
+                print(f"Task result: {message.conclusion}")
+        ```
     """
 
     def __init__(
@@ -57,7 +74,6 @@ class AssistantTeam(Swarm):
         model_client: ChatCompletionClient,
         workbench: Workbench,
         model_client_stream=True,
-        planning_agent_prompt: str = prompts.DEFAULT_PLANNING_PROMPT,
         task_agent_prompt: str = prompts.DEFAULT_TASK_PROMPT,
         summary_agent_prompt: str = prompts.DEFAULT_SUMMARY_PROMPT,
     ):
@@ -68,41 +84,30 @@ class AssistantTeam(Swarm):
             model_client: Chat completion client for agent communication
             workbench: Tool workbench for task execution
             model_client_stream: Enable streaming responses
-            planning_agent_prompt: System prompt for the planning agent
             task_agent_prompt: System prompt for the task agent
             summary_agent_prompt: System prompt for the summary agent
         """
         from autogen_ext.models.openai import OpenAIChatCompletionClient
 
-        # --- Planning Agent ---
-        self.planning_agent = AssistantAgent(
-            PLANNING_AGENT_NAME,
-            model_client=model_client,
-            handoffs=[TASK_AGENT_NAME], 
-            system_message=planning_agent_prompt,
-            model_client_stream=model_client_stream,
-            reflect_on_tool_use=False,
-        )
-
-        # --- Task Execution Agent ---
+        # Configure task agent with specific settings
         task_model_client = ChatCompletionClient.load_component(
             model_client.dump_component()
         )
         if isinstance(task_model_client, OpenAIChatCompletionClient):
             task_model_client._create_args["temperature"] = 0.0
 
+        # Initialize task agent with tool capabilities
         self.task_agent = AssistantAgent(
             TASK_AGENT_NAME,
             model_client=task_model_client,
             workbench=workbench,
-            # Task Agent 可以将任务转回 Planning Agent 重新规划，或交给 Summary Agent 总结
-            handoffs=[PLANNING_AGENT_NAME, SUMMARY_AGENT_NAME],
+            handoffs=[SUMMARY_AGENT_NAME],
             system_message=task_agent_prompt,
             model_client_stream=model_client_stream,
             reflect_on_tool_use=False,
         )
 
-        # --- Summary Agent ---
+        # Initialize summary agent for final reporting
         self.summary_agent = AssistantAgent(
             SUMMARY_AGENT_NAME,
             model_client=model_client,
@@ -112,18 +117,24 @@ class AssistantTeam(Swarm):
 
         # Initialize swarm with termination condition
         super().__init__(
-            participants=[
-                self.planning_agent,
-                self.task_agent,
-                self.summary_agent,
-            ],
+            participants=[self.task_agent, self.summary_agent],
             termination_condition=SourceMatchTermination(SUMMARY_AGENT_NAME),
-            initiator=self.planning_agent,
         )
 
     async def run_stream(self, *, task, cancellation_token=None):
         """
         Execute task with real-time streaming and conclusion detection.
+
+        Processes tasks through the coordinated agent team and streams
+        intermediate events while detecting the final conclusion.
+
+        Args:
+            task: The task to be executed
+            cancellation_token: Token for cancellation support
+
+        Yields:
+            Various agent events including tool calls, streaming chunks,
+            and a final ConclusionEvent with the task outcome.
         """
         self.conclusion: str | None = None
         conclusion_message = ""
@@ -131,7 +142,6 @@ class AssistantTeam(Swarm):
         async for message in super().run_stream(
             task=task,
             cancellation_token=cancellation_token,
-            initiator=self.planning_agent,
         ):
             # Process streaming chunks for conclusion detection
             if isinstance(message, ModelClientStreamingChunkEvent):
@@ -148,19 +158,19 @@ class AssistantTeam(Swarm):
                         continue
 
                 # Add metadata for logging context
-                if message.source == self.planning_agent.name:
-                    message.metadata = {"logger_name": "planning"}
-                elif message.source == self.task_agent.name:
-                    message.metadata = {"logger_name": "execution_reasoning"}
+                if message.source == self.task_agent.name:
+                    message.metadata = {"logger_name": "reasoning"}
                 elif message.source == self.summary_agent.name:
                     message.metadata = {"logger_name": "content"}
 
             # Filter internal team coordination messages
-            if isinstance(message, (HandoffMessage, ToolCallSummaryMessage)):
+            if isinstance(message, HandoffMessage):
+                continue
+            if isinstance(message, ToolCallSummaryMessage):
                 continue
             if (
                 isinstance(message, (ToolCallRequestEvent, ToolCallExecutionEvent))
-                and message.content[0].name.startswith(f"transfer_to_")
+                and message.content[0].name == f"transfer_to_{SUMMARY_AGENT_NAME}"
             ):
                 continue
 
