@@ -19,6 +19,7 @@ from autogen_agentchat.messages import (
 from autogen_agentchat.teams import Swarm
 from autogen_core.models import ChatCompletionClient
 from autogen_core.tools import Workbench
+from autogen_ext.models.openai import OpenAIChatCompletionClient
 
 # Import prompts from separate file
 from . import prompts
@@ -46,28 +47,6 @@ class ConclusionEvent(BaseAgentEvent):
 
 
 class AssistantTeam(Swarm):
-    """
-    A coordinated team of AI assistants for task execution and summarization.
-
-    Comprises two specialized agents that work together:
-    - Task Agent: Executes tasks using available tools
-    - Summary Agent: Provides final summaries and conclusions
-
-    The team follows a structured workflow where the Task Agent handles
-    primary execution and the Summary Agent provides the final overview.
-
-    Example:
-        ```python
-        team = AssistantTeam(
-            model_client=chat_client,
-            workbench=workbench
-        )
-
-        async for message in team.run_stream(task="Analyze sales data"):
-            if isinstance(message, ConclusionEvent):
-                print(f"Task result: {message.conclusion}")
-        ```
-    """
 
     def __init__(
         self,
@@ -87,7 +66,6 @@ class AssistantTeam(Swarm):
             task_agent_prompt: System prompt for the task agent
             summary_agent_prompt: System prompt for the summary agent
         """
-        from autogen_ext.models.openai import OpenAIChatCompletionClient
 
         # Configure task agent with specific settings
         task_model_client = ChatCompletionClient.load_component(
@@ -107,7 +85,6 @@ class AssistantTeam(Swarm):
             reflect_on_tool_use=False,
         )
 
-        # Initialize summary agent for final reporting
         self.summary_agent = AssistantAgent(
             SUMMARY_AGENT_NAME,
             model_client=model_client,
@@ -115,7 +92,6 @@ class AssistantTeam(Swarm):
             model_client_stream=model_client_stream,
         )
 
-        # Initialize swarm with termination condition
         super().__init__(
             participants=[self.task_agent, self.summary_agent],
             termination_condition=SourceMatchTermination(SUMMARY_AGENT_NAME),

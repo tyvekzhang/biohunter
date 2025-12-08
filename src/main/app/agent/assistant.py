@@ -24,6 +24,12 @@ from .llm_client import model_client
 from .team_agent import BaseTeamAgent
 
 
+class PlanChunkEvent(ModelClientStreamingChunkEvent):
+    """Event for streaming thought chunks from the plan agent."""
+
+    type: Literal["PlanChunkEvent"] = "PlanChunkEvent"
+
+
 class ThoughtChunkEvent(ModelClientStreamingChunkEvent):
     """Event for streaming thought chunks from the task agent."""
 
