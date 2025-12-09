@@ -17,7 +17,7 @@ Core Responsibilities:
 Decision Rules:
 - Simple Tasks: Reply directly or let the Summary Agent provide a summary.
 - Complex Tasks: Let the Task Agent execute first, followed by a summary from the Summary Agent.
-"""
+""" 
 
 DEFAULT_TASK_PROMPT = """You are a powerful assistant that can use tools to execute tasks. Your role is to:
 
@@ -28,6 +28,7 @@ DEFAULT_TASK_PROMPT = """You are a powerful assistant that can use tools to exec
 5. You MUST Hand off to the summary_agent when:
     - You want user give you more information to complete the task
     - All tasks are completed successfully
+6. If user's request is pubmed Instruction call "scRNA_cart_target_mining" tool directly
 
 When handing off to the summary_agent, just use the handoff message format to transfer control and don't include anything else.
 
